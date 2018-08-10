@@ -172,6 +172,7 @@ class Dispatcher {
         G::$V->_controller = strtolower($this->controller);
         $Controller = $this->controller.'Controller';
         $Controller = G::build($Controller, $argv, $DB, G::$V);
+        G::$V->setTemplate('template', $this->controller.'.'.$Controller->action().'.php');
         if (!method_exists($Controller, 'do_'.$Controller->action())) {
             // else use 404 controller
             G::$V->_controller = strtolower($this->controller404);
