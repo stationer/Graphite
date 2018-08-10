@@ -50,6 +50,6 @@ class LoginLog extends PassiveRecord {
                           'ddl' => '`ip` int(10) unsigned NOT NULL DEFAULT 0'],
         'ua'          => ['type' => 's', 'max' => 255],
         'login_uts'   => ['type' => 'ts', 'min' => 0, 'def' => NOW,
-                          'ddl' => '`edited_uts` int(10) unsigned NOT NULL DEFAULT 0'],
+                          'ddl' => '`login_uts` int(10) unsigned NOT NULL DEFAULT 0'],
     ];
 }

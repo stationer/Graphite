@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `LoginLog` (
     `login_id` int(10) unsigned NOT NULL DEFAULT 0,
     `ip` int(10) unsigned NOT NULL DEFAULT 0,
     `ua` varchar(255) NOT NULL,
-    `edited_uts` int(10) unsigned NOT NULL DEFAULT 0,
+    `login_uts` int(10) unsigned NOT NULL DEFAULT 0,
     KEY (`updated_dts`),
     PRIMARY KEY(`loginlog_id`)
 );

@@ -79,8 +79,8 @@ class Security {
                 unset($Login);
 
             // if we got here, we should have a valid login, update usage data
-            } elseif (false !== $Login && 'Login' == get_class($Login)) {
-                $Login->dateActive = NOW;
+            } elseif (false !== $Login && Login::class == get_class($Login)) {
+                $Login->active_uts = NOW;
                 $_SESSION['ua'] = $Login->UA = $this->UA;
                 $_SESSION['ip'] = $Login->lastIP = $this->ip;
                 // move to $this->close()// $Login->save();
@@ -121,8 +121,8 @@ class Security {
         }
 
         $this->Session->start();
-        $Login->dateLogin = NOW;
-        $Login->dateActive = NOW;
+        $Login->login_uts = NOW;
+        $Login->active_uts = NOW;
         $_SESSION['ua'] = $Login->UA = $this->UA;
         $_SESSION['ip'] = $Login->lastIP = $this->ip;
         // move to $this->close() $Login->save();
@@ -153,8 +153,8 @@ class Security {
      * @return void
      */
     public function deauthenticate() {
-        if (false !== $this->Login && 'Login' == get_class($this->Login)) {
-            $this->Login->dateLogout = NOW;
+        if (false !== $this->Login && Login::class == get_class($this->Login)) {
+            $this->Login->logout_uts = NOW;
             G::build(DataBroker::class)->save($this->Login);
             $this->Login = false;
             $this->Session->start();
@@ -193,7 +193,7 @@ class Security {
      * @return bool true if current Login has role, false otherwise
      */
     public function roleTest($s) {
-        if (false !== $this->Login && 'Login' == get_class($this->Login)) {
+        if (false !== $this->Login && Login::class == get_class($this->Login)) {
             return $this->Login->roleTest($s);
         }
         return false;

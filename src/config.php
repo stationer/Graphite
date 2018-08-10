@@ -28,7 +28,7 @@ G::$G['MODE'] = 'prd';
 G::$G['VERSION'] = date('Y.m.d');
 // includePath relative to SITE
 // each class will append it's own sub directory to each path
-G::$G['includePath'] = '/vendor/stationer/barrel/src';
+G::$G['includePath'] = '/vendor/stationer/barrel/src;/vendor/stationer/pencil/src';
 G::$G['language'] = 'en_us';
 G::$G['namespaces'] = [
     '',
@@ -42,6 +42,7 @@ G::$G['namespaces'] = [
     '\\Stationer\\Barrel\\controllers\\',
     '\\Stationer\\Pencil\\',
     '\\Stationer\\Pencil\\models\\',
+    '\\Stationer\\Pencil\\controllers\\',
 ];
 
 // enable the installer -- reverse this when installed
@@ -86,8 +87,8 @@ G::$G['SEC']['encryptionKey'] = '';
 
 // Classes to use to produce and test password hash
 G::$G['SEC']['hash_class'] = array(
-    'PBKDF2PasswordHasher',
-    'SHA1PasswordHasher',
+    PBKDF2PasswordHasher::class,
+    SHA1PasswordHasher::class,
 );
 
 // parameters for the PBKDF2 hashword generation method
