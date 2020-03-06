@@ -26,17 +26,17 @@ use Stationer\Graphite\data\DataBroker;
  */
 class Dispatcher {
     /** @var string Name of Controller to load */
-    protected $controller        = 'Default';
+    protected $controller = 'Default';
     /** @var string Path of Controller to load */
-    protected $controllerPath    = '';
+    protected $controllerPath = '';
     /** @var string Name of 404 Controller to load if required */
-    protected $controller404     = 'Default';
+    protected $controller404 = 'Default';
     /** @var string Path of 404 Controller to load if required */
     protected $controller404Path = '';
     /** @var array Paths in which to find Controllers */
-    protected $includePath       = array();
+    protected $includePath = [];
     /** @var array Arguments to pass to Controllers */
-    protected $argv              = array();
+    protected $argv = [];
 
     /**
      * Dispatcher Constructor
@@ -120,12 +120,13 @@ class Dispatcher {
             foreach ($this->includePath as $v) {
                 $s = realpath($v.$a[0].'Controller.php');
                 if (false !== strpos($s, $v) && file_exists($s)) {
-                    $this->controller404 = $a[0];
+                    $this->controller404     = $a[0];
                     $this->controller404Path = $v;
                     break;
                 }
             }
         }
+
         return $this->controller404;
     }
 
@@ -140,15 +141,16 @@ class Dispatcher {
             foreach ($this->includePath as $v) {
                 $s = realpath($v.$a[0].'Controller.php');
                 if (false !== strpos($s, $v) && file_exists($s)) {
-                    $this->controller = $a[0];
+                    $this->controller     = $a[0];
                     $this->controllerPath = $v;
                     break;
                 } else {
-                    $this->controller = $this->controller404;
+                    $this->controller     = $this->controller404;
                     $this->controllerPath = $this->controller404Path;
                 }
             }
         }
+
         return $this->controller;
     }
 
@@ -168,14 +170,14 @@ class Dispatcher {
         $DB = G::build(DataBroker::class);
         /** @var Controller $Controller */
         G::$V->_controller = strtolower($this->controller);
-        $Controller = $this->controller.'Controller';
-        $Controller = G::build($Controller, $argv, $DB, G::$V);
+        $Controller        = $this->controller.'Controller';
+        $Controller        = G::build($Controller, $argv, $DB, G::$V);
         G::$V->setTemplate('template', $this->controller.'.'.$Controller->action().'.php');
         if (!method_exists($Controller, 'do_'.$Controller->action())) {
             // else use 404 controller
             G::$V->_controller = strtolower($this->controller404);
-            $Controller = $this->controller404.'Controller';
-            $Controller = G::build($Controller, $argv, $DB, G::$V);
+            $Controller        = $this->controller404.'Controller';
+            $Controller        = G::build($Controller, $argv, $DB, G::$V);
         }
         $result = $Controller->act();
         if (is_a($result, View::class)) {
@@ -184,6 +186,7 @@ class Dispatcher {
         if (!isset(G::$V->_action)) {
             G::$V->_action = strtolower($Controller->action());
         }
+        G::$V->_actionPath = '/'.$this->controller.'/'.$Controller->action.'/';
 
         return G::$V;
     }

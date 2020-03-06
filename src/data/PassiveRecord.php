@@ -31,7 +31,7 @@ use Stationer\Graphite\G;
  */
 abstract class PassiveRecord extends DataModel implements \JsonSerializable {
     /** @var array Instance DB values of vars defined in $vars */
-    protected $DBvals = array();
+    protected $DBvals = [];
 
     // Should be defined in subclasses
     // protected static $table;// name of table
@@ -68,7 +68,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
         if (true === $a) {
             $this->defaults();
         } elseif (is_numeric($a)) {
-            $this->setAll(array(static::$pkey => $a));
+            $this->setAll([static::$pkey => $a]);
         } else {
             if (true === $b) {
                 $this->defaults();
@@ -94,13 +94,18 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
      * @return string Model's SELECT query
      */
     public static function getQuery() {
+        if ('' == static::$query) {
+            $keys          = array_keys(static::$vars);
+            static::$query = 'SELECT t.`'.join('`, t.`', $keys).'` FROM `'.static::$table.'` t';
+        }
+
         return static::$query;
     }
 
     /**
      * Return the table, which is a protected static var
      *
-     * @param string $joiner Request a joiner table by specifying which table
+     * @param string $joiner  Request a joiner table by specifying which table
      *                        to join with
      *
      * @return string Model's table name
@@ -142,13 +147,9 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
      * @return array Changed values
      */
     public function getDiff() {
-        $diff = array();
+        $diff = [];
         foreach (static::$vars as $k => $v) {
-            if ($this->vals[$k] != $this->DBvals[$k]
-                || (null === $this->vals[$k]) != (null === $this->DBvals[$k])
-                || (true === $this->vals[$k]) != (true === $this->DBvals[$k])
-                || (false === $this->vals[$k]) != (false === $this->DBvals[$k])
-            ) {
+            if ($this->vals[$k] !== $this->DBvals[$k]) {
                 $diff[$k] = $this->vals[$k];
             }
         }
@@ -163,11 +164,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
      */
     public function hasDiff() {
         foreach (static::$vars as $k => $v) {
-            if ($this->vals[$k] != $this->DBvals[$k]
-                || (null === $this->vals[$k]) != (null === $this->DBvals[$k])
-                || (true === $this->vals[$k]) != (true === $this->DBvals[$k])
-                || (false === $this->vals[$k]) != (false === $this->DBvals[$k])
-            ) {
+            if ($this->vals[$k] !== $this->DBvals[$k]) {
                 return true;
             }
         }
@@ -198,7 +195,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
      *
      * @return void
      */
-    public function onload(array $row = array()) {
+    public function onload(array $row = []) {
     }
 
     /**
@@ -217,12 +214,30 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
     }
 
     /**
+     * Override this function to perform custom actions BEFORE insert
+     * This will not be called if insert() does not attempt commit to DB
+     *
+     * @return void
+     */
+    public function onAfterInsert() {
+    }
+
+    /**
      * Override this function to perform custom actions BEFORE update
      * This will not be called if update() does not attempt commit to DB
      *
      * @return void
      */
     public function onupdate() {
+    }
+
+    /**
+     * Override this function to perform custom actions BEFORE update
+     * This will not be called if update() does not attempt commit to DB
+     *
+     * @return void
+     */
+    public function onAfterUpdate() {
     }
 
     /**
@@ -242,7 +257,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
      *
      * @return mixed Array of unregistered values on success, false on failure
      */
-    public function load_array(array $row = array()) {
+    public function load_array(array $row = []) {
         if (!isset($row[static::$pkey]) || null === $row[static::$pkey]) {
             return false;
         }
@@ -267,7 +282,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
     /**
      * Instruct json_encode to only encode the array cast
      *
-     * @return string json_encode'd array of values
+     * @return array json_encode'd array of values
      */
     public function jsonSerialize() {
         return $this->toArray();
@@ -307,7 +322,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
                 $query .= "    KEY (".implode(',', $key)."),\n";
             }
         }
-        foreach (['updated_dts','recordChanged'] as $key) {
+        foreach (['updated_dts', 'recordChanged'] as $key) {
             if (!empty(static::$vars[$key]) && !in_array($key, static::$keys ?? [])) {
                 $query .= "    KEY (`$key`),\n";
             }
@@ -407,7 +422,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
                     $config['ddl'] = '`'.$field.'` varchar('.((int)$config['max']).') NOT NULL';
                 }
                 if (isset($config['def'])) {
-                    $def = ($config['def'] == '' ? '' : G::$M->escape_string($config['def']));
+                    $def           = ($config['def'] == '' ? '' : G::$M->escape_string($config['def']));
                     $config['ddl'] .= " DEFAULT '$def'";
                 }
                 break;
@@ -475,7 +490,7 @@ abstract class PassiveRecord extends DataModel implements \JsonSerializable {
                 }
                 $config['ddl'] = substr($config['ddl'], 0, -1).') NOT NULL';
                 if (isset($config['def'])) {
-                    $def = ($config['def'] == '' ? '' : G::$M->escape_string($config['def']));
+                    $def           = ($config['def'] == '' ? '' : G::$M->escape_string($config['def']));
                     $config['ddl'] .= " DEFAULT '$def'";
                 }
                 break;

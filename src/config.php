@@ -13,6 +13,8 @@
 
 namespace Stationer\Graphite;
 
+use Stationer\Graphite\data\DataModel;
+
 // Tue, 15 Nov 1994 12:45:26 GMT
 const DATETIME_HTTP = 'D, d M Y H:i:s T';
 // August 1, 2017
@@ -52,6 +54,12 @@ G::$G['namespaces'] = [
 
 // enable the installer -- reverse this when installed
 G::$G['installer'] = true;
+
+// International characters that should be substituted for php's filter_var
+G::$G[DataModel::class]['InternationalCharacters'] = [
+    'À', 'à', 'Â', 'â', 'Ä', 'ä', 'Æ', 'æ', 'Ç', 'ç', 'È', 'è', 'É', 'é', 'Ê',
+    'ê', 'Ë', 'ë', 'Î', 'î', 'Ï', 'ï', 'Ô', 'ô', 'Ù', 'ù', 'Û', 'û', 'Ü', 'ü',
+];
 /** **************************************************************************
  * /General settings
  ****************************************************************************/
@@ -75,10 +83,14 @@ G::$G['db']['ro'] = array(
     'name' => ''
 );
 
+G::$G['db']['slowQueryThreshold'] = 50;
+
 G::$G['db']['ProviderDict'] = array(
     \Stationer\Graphite\data\DataModel::class => \Stationer\Graphite\data\MySQLDataProvider::class,
     \Stationer\Graphite\data\Report::class    => \Stationer\Graphite\data\ReportDataProvider::class,
 );
+
+G::$G['db']['guard'] = true;
 /** **************************************************************************
  * /Database settings
  ****************************************************************************/
@@ -153,16 +165,16 @@ G::$G['CON']['controller404'] = 'Default';
 G::$G['CON']['controller500'] = 'Default';
 
 // Passed Values
-if (isset($_GET['controller'])) {
+if (isset($_GET['_controller'])) {
     G::$G['CON']['controller'] = $_GET['_controller'];
 }
-if (isset($_GET['action'])) {
+if (isset($_GET['_action'])) {
     G::$G['CON']['action'] = $_GET['_action'];
 }
-if (isset($_GET['params'])) {
+if (isset($_GET['_params'])) {
     G::$G['CON']['params'] = $_GET['_params'];
 }
-if (isset($_GET['argv'])) {
+if (isset($_GET['_argv'])) {
     G::$G['CON']['argv'] = $_GET['_argv'];
 }
 if (isset($_SERVER['PATH_INFO'])) {
@@ -183,7 +195,7 @@ if (isset($_SERVER['PATH_INFO'])) {
 
 // display vars
 G::$G['VIEW']['_siteName'] = 'Graphite Site';
-G::$G['VIEW']['_siteURL'] = 'http://'.$_SERVER['SERVER_NAME'];
+G::$G['VIEW']['_siteURL'] = 'https://'.$_SERVER['SERVER_NAME'];
 G::$G['VIEW']['_loginURL'] = '/Account/login';
 G::$G['VIEW']['_logoutURL'] = '/Account/Logout';
 G::$G['VIEW']['_header'] = 'header.php';

@@ -27,7 +27,10 @@ namespace Stationer\Graphite;
  */
 class AutoLoader {
     /** @var array Registry of known class names */
-    protected static $classNames = array();
+    protected static $classNames = [];
+
+    /** @var \RedisUtility */
+    protected static $Cache;
 
     /**
      * Index the file path based on the file name minus the .php extension.
@@ -54,7 +57,7 @@ class AutoLoader {
             foreach ($dirs as $dir) {
                 $output = static::getDirListing($dir);
                 foreach ($output as $file) {
-                    $className = basename($file, '.php');
+                    $className                      = basename($file, '.php');
                     static::$classNames[$className] = $file;
                 }
             }
@@ -75,12 +78,12 @@ class AutoLoader {
         $dir = realpath(SITE.$dir).DIRECTORY_SEPARATOR;
         // Any missing paths will translate as root
         if ('/' == $dir) {
-            return array();
+            return [];
         }
-        $output = array();
+        $output = [];
         foreach (scandir($dir) as $path) {
             // Only scan directories expected to have classes
-            if (!in_array($path, array('controllers', 'lib', 'models', 'reports'))) {
+            if (!in_array($path, ['controllers', 'lib', 'models', 'reports'])) {
                 continue;
             }
             $output = array_merge($output, self::findPhpFiles($dir.$path.DIRECTORY_SEPARATOR));
@@ -100,13 +103,13 @@ class AutoLoader {
         // Clean up path and prepare to prepend it to each result
         $dir = realpath($dir).DIRECTORY_SEPARATOR;
         // convert return values of scandir() to full paths
-        $files = array_map(function ($val) use ($dir) {
+        $files  = array_map(function ($val) use ($dir) {
             return $dir.$val;
         }, scandir($dir));
-        $output = array();
+        $output = [];
         while (!empty($files)) {
             $file = array_shift($files);
-            if (in_array(basename($file), array('.', '..'))) {
+            if (in_array(basename($file), ['.', '..'])) {
                 continue;
             }
             if (is_dir($file)) {
@@ -165,6 +168,7 @@ class AutoLoader {
         if (isset(static::$classNames[$className])) {
             return static::$classNames[$className];
         }
+
         return null;
     }
 
@@ -189,7 +193,7 @@ class AutoLoader {
      * @return void
      */
     public static function loadClass($className) {
-        if (isset(static::$classNames[$className])) {
+        if (isset(static::$classNames[$className]) && file_exists(static::$classNames[$className])) {
             require_once static::$classNames[$className];
             return;
         }
@@ -225,12 +229,28 @@ class AutoLoader {
     }
 
     /**
-     * Stub for loading registry cache
+     * Attempt to load cached class registry
+     * @TODO: Move RedisUtility into Graphite
      *
      * @return array|null
      */
     private static function getRegistryCache() {
-        return null;
+        /** @var \RedisUtility $Cache */
+        try {
+            if (!class_exists(\RedisUtility::class)) {
+                throw new \Exception();
+            }
+            self::$Cache = new \RedisUtility();
+            if ($Cache->exists(static::getCacheKey())) {
+                $output = self::$Cache->get(static::getCacheKey());
+            }
+        } catch (\Exception $e) {
+            self::$Cache = null;
+        } catch (\Error $e) {
+            self::$Cache = null;
+        }
+
+        return $output ?? null;
     }
 
     /**
@@ -239,5 +259,7 @@ class AutoLoader {
      * @return void
      */
     private static function setRegistryCache() {
+        // Attempt to save cached class registry, if the $Cache is available
+        self::$Cache && self::$Cache->set(static::getCacheKey(), static::$classNames, 3600);
     }
 }

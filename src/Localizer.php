@@ -27,7 +27,7 @@ class Localizer {
     private static $language = 'en_us';
 
     /** @var array  Array of Language keys to reference. */
-    private static $langKeys = array();
+    private static $langKeys = [];
 
     /**
      * Sets the language to be used from here on out.
@@ -38,7 +38,7 @@ class Localizer {
      */
     public static function setLanguage($lang) {
         self::$language = $lang;
-        self::$langKeys = array();
+        self::$langKeys = [];
         self::loadLib('Global');
     }
 
@@ -54,7 +54,7 @@ class Localizer {
         foreach ($dirs as $dir) {
             $filename = SITE.$dir.'/lang/'.self::$language.'/'.$libName.'.php';
             if (file_exists($filename)) {
-                $newKeys = include $filename;
+                $newKeys        = include $filename;
                 self::$langKeys = array_merge($newKeys, self::$langKeys);
             }
         }

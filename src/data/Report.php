@@ -165,6 +165,8 @@ abstract class Report extends DataModel {
                 } elseif ('a' === $props['type']) {
                     $inList  = $this->implodeArray(unserialize($this->$field));
                     $where[] = sprintf($props['sql'], $inList);
+                } elseif ('b' == static::$vars[$field]['type']) {
+                    $where[] = sprintf($props['sql'], (int)$this->vals[$field]);
                 } else {
                     $where[] = sprintf($props['sql'], G::$m->escape_string($this->vals[$field]));
                 }
@@ -349,7 +351,7 @@ abstract class Report extends DataModel {
     public function getMySql() {
         if (self::$mySql === null) {
             $source      = $this->getSource();
-            self::$mySql = ifset(G::$M->buildForSource($source), G::$m);
+            self::$mySql = G::$M->buildForSource($source) ?? G::$m;
         }
 
         return self::$mySql;

@@ -37,7 +37,7 @@ abstract class ReportMySQLDataProvider extends MySQLDataProvider {
      *
      * @return array|bool Found records, false on error
      */
-    public function fetch($class, array $params = array(), array $orders = array(), $count = null, $start = 0) {
+    public function fetch($class, array $params = [], array $orders = [], $count = null, $start = 0) {
         /** @var PassiveReport $Model */
         $Model = G::build($class);
         if (!is_a($Model, PassiveReport::class)) {
@@ -49,11 +49,11 @@ abstract class ReportMySQLDataProvider extends MySQLDataProvider {
 
         $vars   = $Model->getParamList();
         $params = $Model->getAll();
-        $params = array_filter($params, function($val) {
+        $params = array_filter($params, function ($val) {
             return !is_null($val);
         });
 
-        $query = array();
+        $query = [];
 
         foreach ($params as $key => $val) {
             // Support list of values for OR conditions
@@ -63,7 +63,7 @@ abstract class ReportMySQLDataProvider extends MySQLDataProvider {
                     $Model->$key = $val2;
                     $val[$key2]  = sprintf($vars[$key]['sql'], G::$m->escape_string($Model->$key));
                 }
-                $query[] = "(".implode(") OR (", $val).")";
+                $query[] = "((".implode(") OR (", $val)."))";
             } elseif ('a' === $vars[$key]['type']) {
                 $arr = unserialize($Model->$key);
 
@@ -71,8 +71,9 @@ abstract class ReportMySQLDataProvider extends MySQLDataProvider {
                     $arr[$kk] = G::$m->escape_string($vv);
                 }
                 $query[] = sprintf($vars[$key]['sql'], "'".implode("', '", $arr)."'");
+            } elseif ('b' == $vars[$key]['type']) {
+                $query[] = sprintf($vars[$key]['sql'], (int)$val);
             } else {
-                /** @var string $val */
                 $query[] = sprintf($vars[$key]['sql'], G::$m->escape_string($val));
             }
         }
@@ -99,11 +100,11 @@ abstract class ReportMySQLDataProvider extends MySQLDataProvider {
         if (false === $result) {
             return false;
         }
-        $data = array();
-        $row = $result->fetch_assoc();
+        $data = [];
+        $row  = $result->fetch_assoc();
         while ($row) {
             $data[] = $row;
-            $row = $result->fetch_assoc();
+            $row    = $result->fetch_assoc();
         }
         $result->close();
         $Model->setData($data);

@@ -14,6 +14,7 @@
 namespace Stationer\Graphite\data;
 
 use Stationer\Graphite\G;
+
 /**
  * ReportDataProvider class - Fetches reports for Report models
  *
@@ -36,7 +37,7 @@ class ReportDataProvider extends DataProvider {
      *
      * @return array Found records
      */
-    public function fetch($class, array $params = array(), array $orders = array(), $count = null, $start = 0) {
+    public function fetch($class, array $params = [], array $orders = [], $count = null, $start = 0) {
         /** @var Report $Model */
         $Model = G::build($class);
         if (!is_a($Model, Report::class)) {
@@ -64,7 +65,7 @@ class ReportDataProvider extends DataProvider {
      *
      * @return array Found records
      */
-    public function count($class, array $params = array()) {
+    public function count($class, array $params = []) {
         /** @var Report $Model */
         $Model = G::build($class);
         if (!is_a($Model, Report::class)) {

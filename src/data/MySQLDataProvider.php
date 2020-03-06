@@ -38,57 +38,31 @@ class MySQLDataProvider extends DataProvider {
      *
      * @return array|bool Found records|false on failure
      */
-    public function fetch($class, array $params = array(), array $orders = array(), $count = null, $start = 0) {
+    public function fetch($class, array $params = [], array $orders = [], $count = null, $start = 0) {
         /** @var PassiveRecord $Model */
         $Model = G::build($class);
         if (!is_a($Model, PassiveRecord::class)) {
             trigger_error('Supplied class "'.$class.'" name does not extend PassiveRecord', E_USER_ERROR);
         }
 
-        $vars = $Model->getFieldList();
-        $values = array();
-        // Build search WHERE clause
-        foreach ($params as $key => $val) {
-            if (!isset($vars[$key])) {
-                // Skip Invalid field
-                continue;
-            }
-            // Support list of values for IN conditions
-            if (is_array($val) && !in_array($vars[$key]['type'], array('a', 'j', 'o', 'b'))) {
-                foreach ($val as $key2 => $val2) {
-                    // Sanitize each value through the model
-                    $Model->$key = $val2;
-                    $val2 = $Model->$key;
-                    $val[$key2] = G::$m->escape_string($val2);
-                }
-                $values[] = "t.`$key` IN ('".implode("', '", $val)."')";
-            } else {
-                $Model->$key = $val;
-                $val = $Model->$key;
-                if ('b' == $vars[$key]['type']) {
-                    $values[] = "t.`$key` = ".($val ? "b'1'" : "b'0'");
-                } else {
-                    $values[] = "t.`$key` = '".G::$M->escape_string($val)."'";
-                }
-            }
-        }
+        $vars  = $Model->getFieldList();
+        $where = $this->buildWhere($params, $Model);
 
-        $keys = array_keys($vars);
+        $keys  = array_keys($vars);
         $query = $Model->getQuery();
         if ('' == $query) {
             $query = "\nSELECT t.`".join("`, t.`", $keys)."`"
                 ."\nFROM `".$Model->getTable()."` t";
         }
-        $query .= (count($values) ? "\nWHERE ".join("\n    AND ", $values) : "")
-            ."\nGROUP BY t.`".$Model->getPkey()."`"
+        $query .= $where
+            ."\nGROUP BY t.`".$Model->getPkey().'`'
             .$this->_makeOrderBy($orders, array_keys($vars))
             .(is_numeric($count) && is_numeric($start)
                 ? "\nLIMIT ".((int)$start).",".((int)$count)
-                : "")
-        ;
+                : "");
 
         $source = $Model->getSource();
-        $MySql = mysqli_::buildForSource($source);
+        $MySql  = mysqli_::buildForSource($source);
         if (null != $MySql) {
             $result = $MySql->query($query);
         } else {
@@ -98,15 +72,59 @@ class MySQLDataProvider extends DataProvider {
             return false;
         }
 
-        $Records = array();
+        $Records = [];
         while ($row = $result->fetch_assoc()) {
-            /** @var PassiveRecord $Records[$row[$Model->getPkey()]] */
+            /** @var PassiveRecord $Records [$row[$Model->getPkey()]] */
             $Records[$row[$Model->getPkey()]] = new $class();
             $Records[$row[$Model->getPkey()]]->load_array($row);
         }
         $result->close();
 
         return $Records;
+    }
+
+    /**
+     * Search for records of type $class according to search params $params
+     * Order results by $orders and limit results by $count, $start
+     *
+     * @param string $class  Name of Model to search for
+     * @param array  $params Values to search against
+     *
+     * @return array Found records
+     */
+    public function count($class, array $params = []) {
+        /** @var PassiveRecord $Model */
+        $Model = G::build($class);
+        if (!is_a($Model, PassiveRecord::class)) {
+            trigger_error('Supplied class "'.$class.'" name does not extend PassiveRecord', E_USER_ERROR);
+        }
+
+        $vars  = $Model->getFieldList();
+        $where = $this->buildWhere($params, $Model);
+
+        $query = 'SELECT COUNT(t.`'.$Model->getPkey().'`) AS `count`'
+            .' FROM `'.$Model->getTable().'` t'
+            .$where;
+
+        $source = $Model->getSource();
+        $MySql  = mysqli_::buildForSource($source);
+        if (null != $MySql) {
+            $result = $MySql->query($query);
+        } else {
+            $result = G::$m->query($query);
+        }
+        if (false === $result) {
+            return false;
+        }
+
+        if ($row = $result->fetch_assoc()) {
+            $count = $row['count'];
+        } else {
+            $count = false;
+        }
+        $result->close();
+
+        return $count;
     }
 
     /**
@@ -124,9 +142,9 @@ class MySQLDataProvider extends DataProvider {
             return null;
         }
 
-        $vars = $Model->getFieldList();
-        $fields = array();
-        $values = array();
+        $vars   = $Model->getFieldList();
+        $fields = [];
+        $values = [];
 
         $Model->oninsert();
         // Get new diff in case oninsert altered data
@@ -142,8 +160,8 @@ class MySQLDataProvider extends DataProvider {
         }
 
         $query = 'INSERT INTO `'.$Model->getTable().'`'
-            . ' (`' . implode('`, `', $fields) . '`)'
-            . "\nVALUES (" . implode(", ", $values) . ")";
+            .' (`'.implode('`, `', $fields).'`)'
+            ."\nVALUES (".implode(", ", $values).")";
 
         if (false === G::$M->query($query)) {
             return false;
@@ -153,11 +171,12 @@ class MySQLDataProvider extends DataProvider {
         }
 
         $Model->unDiff();
+        $Model->onAfterInsert();
 
         return $Model->{$Model->getPkey()};
     }
 
-     /**
+    /**
      * Save data for passed model
      *
      * @param PassiveRecord $Model Model to save, passed by reference
@@ -176,10 +195,10 @@ class MySQLDataProvider extends DataProvider {
         if (null !== $Model->{$Model->getPkey()}) {
             $diff[$Model->getPkey()] = $Model->{$Model->getPkey()};
         }
-        $vars = $Model->getFieldList();
-        $fields = array();
-        $values = array();
-        $updates = array();
+        $vars    = $Model->getFieldList();
+        $fields  = [];
+        $values  = [];
+        $updates = [];
 
         $Model->oninsert();
         // Get new diff in case oninsert altered data
@@ -188,18 +207,18 @@ class MySQLDataProvider extends DataProvider {
         foreach ($diff as $key => $val) {
             $fields[] = $key;
             if ('b' == $vars[$key]['type']) {
-                $values[] = $diff[$key] ? "b'1'" : "b'0'";
+                $values[]  = $diff[$key] ? "b'1'" : "b'0'";
                 $updates[] = "`$key` = ".($diff[$key] ? "b'1'" : "b'0'");
             } else {
-                $values[] = "'".G::$M->escape_string($diff[$key])."'";
+                $values[]  = "'".G::$M->escape_string($diff[$key])."'";
                 $updates[] = "`$key` = '".G::$M->escape_string($diff[$key])."'";
             }
         }
 
         $query = 'INSERT INTO `'.$Model->getTable().'`'
-            . ' (`' . implode('`, `', $fields) . '`)'
-            . "\nVALUES (" . implode(", ", $values) . ")"
-            . "\nON DUPLICATE KEY UPDATE "
+            .' (`'.implode('`, `', $fields).'`)'
+            ."\nVALUES (".implode(", ", $values).")"
+            ."\nON DUPLICATE KEY UPDATE "
             .implode(', ', $updates);
 
         if (false === G::$M->query($query)) {
@@ -210,6 +229,7 @@ class MySQLDataProvider extends DataProvider {
         }
 
         $Model->unDiff();
+        $Model->onAfterInsert();
 
         return $Model->{$Model->getPkey()};
     }
@@ -232,8 +252,8 @@ class MySQLDataProvider extends DataProvider {
         if (0 == count($diff)) {
             return null;
         }
-        $vars = $Model->getFieldList();
-        $values = array();
+        $vars   = $Model->getFieldList();
+        $values = [];
 
         $Model->onupdate();
         // Get new diff in case onupdate altered data
@@ -257,6 +277,8 @@ class MySQLDataProvider extends DataProvider {
             return false;
         }
         $Model->unDiff();
+        $Model->onAfterUpdate();
+
         return true;
     }
 
@@ -274,7 +296,7 @@ class MySQLDataProvider extends DataProvider {
         }
 
         $Model->ondelete();
-        $query  = 'DELETE FROM `'.$Model->getTable().'` '
+        $query = 'DELETE FROM `'.$Model->getTable().'` '
             ."\nWHERE `".$Model->getPkey()."` = '".G::$M->escape_string($Model->{$Model->getPkey()})."'";
 
         return G::$M->query($query);
@@ -289,7 +311,7 @@ class MySQLDataProvider extends DataProvider {
      *
      * @return string ORDER BY clause
      */
-    protected function _makeOrderBy(array $orders = array(), array $valids = array()) {
+    protected function _makeOrderBy(array $orders = [], array $valids = []) {
         if (0 == count($orders) || 0 == count($valids)) {
             return '';
         }
@@ -310,5 +332,46 @@ class MySQLDataProvider extends DataProvider {
         }
 
         return "\nORDER BY ".join(',', $orders);
+    }
+
+    /**
+     * Builds a WHERE clause from a list of key/value pairs
+     *
+     * @param array         $params Key/Value pairs to add to the WHERE clause
+     * @param PassiveRecord $Model  Model to be passed
+     *
+     * @return string
+     */
+    protected function buildWhere(array $params, $Model) {
+        $vars   = $Model->getFieldList();
+        $values = [];
+        // Build search WHERE clause
+        foreach ($params as $key => $val) {
+            if (!isset($vars[$key])) {
+                // Skip Invalid field
+                continue;
+            }
+            // Support list of values for IN conditions
+            if (is_array($val) && !in_array($vars[$key]['type'], ['a', 'j', 'o', 'b'])) {
+                foreach ($val as $key2 => $val2) {
+                    // Sanitize each value through the model
+                    $Model->$key = $val2;
+                    $val2        = $Model->$key;
+                    $val[$key2]  = G::$m->escape_string($val2);
+                }
+                $values[] = "t.`$key` IN ('".implode("', '", $val)."')";
+            } else {
+                $Model->$key = $val;
+                $val         = $Model->$key;
+                if ('b' == $vars[$key]['type']) {
+                    $values[] = "t.`$key` = ".($val ? "b'1'" : "b'0'");
+                } else {
+                    $values[] = "t.`$key` = '".G::$M->escape_string($val)."'";
+                }
+            }
+        }
+        $where = count($values) ? ' WHERE '.join(' AND ', $values) : '';
+
+        return $where;
     }
 }

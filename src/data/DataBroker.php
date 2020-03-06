@@ -14,6 +14,7 @@
 namespace Stationer\Graphite\data;
 
 use Stationer\Graphite\G;
+
 require 'IDataProvider.php';
 
 /**
@@ -26,10 +27,10 @@ require 'IDataProvider.php';
  */
 class DataBroker implements IDataProvider {
     /** @var array $Providers A cache of lazy-loaded DataProviders */
-    protected static $Providers = array();
+    protected static $Providers = [];
 
     /** @var array $ProviderDict A Map of models to DataProviders */
-    protected static $ProviderDict = array();
+    protected static $ProviderDict = [];
 
     /**
      * Set Broker dictionary
@@ -55,7 +56,7 @@ class DataBroker implements IDataProvider {
      *
      * @return array Found records
      */
-    public function fetch($class, array $params = array(), array $orders = array(), $count = null, $start = 0) {
+    public function fetch($class, array $params = [], array $orders = [], $count = null, $start = 0) {
         return self::getDataProviderForClass($class)->{__FUNCTION__}($class, $params, $orders, $count, $start);
     }
 
@@ -67,7 +68,7 @@ class DataBroker implements IDataProvider {
      *
      * @return array Count of Found records
      */
-    public function count($class, array $params = array()) {
+    public function count($class, array $params = []) {
         return self::getDataProviderForClass($class)->{__FUNCTION__}($class, $params);
     }
 
@@ -196,6 +197,7 @@ class DataBroker implements IDataProvider {
                     // Instantiate DataProvider of class `static::$ProviderDict[$class]`
                     static::$Providers[static::$ProviderDict[$class]] = G::build(static::$ProviderDict[$class]);
                 }
+
                 return static::$Providers[static::$ProviderDict[$class]];
             }
         } while (false !== $class = get_parent_class($class));

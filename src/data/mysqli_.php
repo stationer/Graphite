@@ -24,16 +24,26 @@ use Stationer\Graphite\Profiler;
  * @author   LoneFry <dev@lonefry.com>
  * @license  MIT https://github.com/stationer/Graphite/blob/master/LICENSE
  * @link     https://github.com/stationer/Graphite
+ *
+ * @property string $error
+ * @property int    $errno
+ * @method string escape_string(string $s)
  */
-class mysqli_ extends mysqli {
+class mysqli_ {
     /** @var array Log of queries, run times, errors */
-    private static $_aQueries = array(array(0));
+    private static $_aQueries = [[0]];
 
     /** @var string Common prefix used by app tables, for reference */
     private static $_tabl = '';
 
     /** @var bool Whether to log */
     private static $_log = false;
+
+    /** @var array Keep connection params, in case need to reconnect */
+    private $_connectionParam;
+
+    /** @var mysqli The instance of MySQL */
+    private $_mysqli;
 
     /** @var bool Whether connection succeeded */
     private $_open = false;
@@ -54,11 +64,13 @@ class mysqli_ extends mysqli {
      * @param bool   $log  whether to enable query logging
      */
     public function __construct($host, $user, $pass, $db, $port = null,
-                                $sock = null, $tabl = '', $log = false) {
-        parent::__construct($host, $user, $pass, $db, $port, $sock);
+                                $sock = null, $tabl = '', $log = false
+    ) {
+        $this->_connectionParam = [$host, $user, $pass, $db, $port, $sock];
+        $this->_mysqli          = new mysqli(...$this->_connectionParam);
         if (!mysqli_connect_error()) {
             $this->_open = true;
-            self::$_tabl = $this->escape_string($tabl);
+            self::$_tabl = $this->_mysqli->escape_string($tabl);
         }
         self::$_log = $log;
     }
@@ -68,10 +80,23 @@ class mysqli_ extends mysqli {
      */
     public function __destruct() {
         $this->close();
-        // mysqli::__destruct does not exist, yet...
-        if (method_exists(parent::class, __FUNCTION__)) {
-            parent::{__FUNCTION__}();
+    }
+
+    /**
+     * Pass unknown function calls to mysqli (because, this class used to extend mysqli)
+     *
+     * @param string $name      Called method
+     * @param array  $arguments Passed arguments
+     *
+     * @return mixed
+     */
+    public function __call($name, $arguments) {
+        // If we're in read only mode and the connection is not open, just fail quietly
+        if (true === $this->readonly && false === $this->_open) {
+            return false;
         }
+
+        return $this->_mysqli->{$name}(...$arguments);
     }
 
     /**
@@ -81,7 +106,7 @@ class mysqli_ extends mysqli {
      */
     public function close() {
         if ($this->_open) {
-            parent::close();
+            $this->_mysqli->close();
             $this->_open = false;
         }
     }
@@ -96,30 +121,17 @@ class mysqli_ extends mysqli {
     }
 
     /**
-     * Wrapper for mysqli::escape_string() that checks our open status
-     *
-     * @param string $escapestr String to escape
-     *
-     * @return string Escaped string
-     */
-    public function escape_string($escapestr) {
-        if (false === $this->_open) {
-            return false;
-        }
-
-        return parent::escape_string($escapestr);
-    }
-
-    /**
      * Wrapper for mysqli::query() that logs queries
      *
      * @param string $query      Query to run
-     * @param int    $resultMode See mysqli::query()
+     * @param int    $resultMode http://php.net/manual/en/mysqli.query.php
      *
      * @return mixed Passes return value from mysqli::query()
      */
     public function query($query, $resultMode = \MYSQLI_STORE_RESULT) {
         if (false === $this->_open) {
+            trigger_error('Refusing to run a query against a closed connection.');
+
             return false;
         }
         // If we're flagged readonly, just don't bother with DML
@@ -127,7 +139,7 @@ class mysqli_ extends mysqli {
         $skipQuery = $this->readonly
             && !in_array(strtolower(substr(ltrim($query), 0, 6)), ['select', 'explai', 'descri', 'show t']);
         if (!self::$_log) {
-            return $skipQuery ? false : parent::query($query, $resultMode);
+            return $skipQuery ? false : $this->query_and_handle_errors($query, $resultMode);
         }
 
         // get the last few functions on the call stack
@@ -145,18 +157,18 @@ class mysqli_ extends mysqli {
                 ).$trace[1]['function'];
         }
         // query as sent to database
-        $query_stacked = '/* '.$this->escape_string(substr($stack, strrpos($stack, '/'))).' */ '.$query;
+        $query_stacked = '/* '.$this->_mysqli->escape_string(substr($stack, strrpos($stack, '/'))).' */ '.$query;
 
         if ($skipQuery) {
             $result = false;
-            $time = '-';
+            $time   = '-';
         } else {
             // Start Profiler for 'query'
             Profiler::getInstance()->mark(__METHOD__);
             // start time
             $time = microtime(true);
             // Call mysqli's query() method, with call stack in comment
-            $result = parent::query($query_stacked, $resultMode);
+            $result = $this->query_and_handle_errors($query_stacked, $resultMode);
             // [0][0] totals the time of all queries
             self::$_aQueries[0][0] += $time = microtime(true) - $time;
             // Pause Profiler for 'query'
@@ -173,25 +185,30 @@ class mysqli_ extends mysqli {
                     : ''
                 ).$trace[$i]['function'];
         }
+        // trigger_error for slow queries
+        if (is_numeric($time) && G::$G['db']['slowQueryThreshold'] < $time) {
+            trigger_error('Slow Query ('.$time.'): '.$query);
+            trigger_error('Slow Query @'.$stack);
+        }
         // assemble log: query time, query, call stack, rows affected/selected
-        $log = array(
+        $log = [
             'time'       => $time,
             'error'      => '',
             'errno'      => '',
             'stack'      => $stack,
-            'rows'       => $result == false ? 0 : $this->affected_rows,
-            '$host_info' => $this->host_info,
+            'rows'       => $result == false ? 0 : $this->_mysqli->affected_rows,
+            '$host_info' => $this->_mysqli->host_info,
             'query'      => $query,
-        );
+        ];
         // if there was an error, log that too
-        if ($this->errno) {
-            $log['error'] = $this->error;
-            $log['errno'] = $this->errno;
+        if ($this->_mysqli->errno) {
+            $log['error'] = $this->_mysqli->error;
+            $log['errno'] = $this->_mysqli->errno;
             // report error on PHP error log
             // unless it's a read-only mode error, we don't care about those.
             if (self::$_log >= 2
-                && !(1290 == $this->errno
-                    && 'The MySQL server is running with the --read-only' == substr($this->error, 0, 48))
+                && !(1290 == $this->_mysqli->errno
+                    && 'The MySQL server is running with the --read-only' == substr($this->_mysqli->error, 0, 48))
             ) {
                 // @codingStandardsIgnoreStart
                 trigger_error(print_r($log, 1));
@@ -200,7 +217,30 @@ class mysqli_ extends mysqli {
         }
         // append to log
         self::$_aQueries[] = $log;
+
         // return result as normal
+        return $result;
+    }
+
+    /**
+     * Run a query, and handle any errors we can handle
+     *
+     * @param string $query      Query to run
+     * @param int    $resultmode http://php.net/manual/en/mysqli.query.php
+     *
+     * @return mixed Passes return value from mysqli::query()
+     */
+    private function query_and_handle_errors($query, $resultmode = \MYSQLI_STORE_RESULT) {
+        $result = $this->_mysqli->query($query, $resultmode);
+
+        // Handle "MySQL server has gone away"
+        if (2006 == $this->_mysqli->errno) {
+            $this->_mysqli = new mysqli(...$this->_connectionParam);
+            if (!mysqli_connect_error()) {
+                $result = $this->_mysqli->query($query, $resultmode);
+            }
+        }
+
         return $result;
     }
 
@@ -214,19 +254,19 @@ class mysqli_ extends mysqli {
      */
     public function queryToArray($query, $keyField = null) {
         // If query fails, return false
-        if (false === $result = $this->query($query)) {
+        if (false === $result = $this->query_and_handle_errors($query)) {
             return false;
         }
 
         // If query returns no rows, return empty array
-        if (0 == $this->affected_rows) {
+        if (0 == $this->_mysqli->affected_rows) {
             $result->close();
 
-            return array();
+            return [];
         }
 
         // We have rows, fetch them all into a new array to return
-        $data = array();
+        $data = [];
         // Get the first row to verify the keyField
         $row = $result->fetch_assoc();
         if (null !== $keyField && !isset($row[$keyField])) {
@@ -283,9 +323,13 @@ class mysqli_ extends mysqli {
             case 'open':
                 return $this->_open;
             default:
+                if (isset($this->_mysqli->{$k})) {
+                    return $this->_mysqli->{$k};
+                }
                 $d = debug_backtrace();
                 trigger_error('Undefined property via __get(): '.$k.' in '.$d[0]['file'].' on line '.$d[0]['line'],
                     E_USER_NOTICE);
+
                 return null;
         }
     }

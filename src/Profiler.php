@@ -25,7 +25,7 @@ class Profiler {
     /** @var Profiler $instance */
     private static $instance = null;
 
-    protected $checkpoints = array();
+    protected $checkpoints = [];
 
     const DEFAULT_LABEL = '_Profiler';
 
@@ -90,7 +90,7 @@ class Profiler {
 
         if (!isset($this->checkpoints[$label])) {
             // Create tracking label
-            $this->checkpoints[$label] = array(0 => array('timer' => 0));
+            $this->checkpoints[$label] = [0 => ['timer' => 0]];
             $duration                  = 0;
         } else {
             // Calculate time since last label mark
@@ -112,7 +112,7 @@ class Profiler {
      * @return array Mark
      */
     public function stop($label = self::DEFAULT_LABEL) {
-        $mark = $this->mark($label);
+        $mark                                  = $this->mark($label);
         $this->checkpoints[$label][0]['timer'] += $mark['duration'];
 
         return $mark;

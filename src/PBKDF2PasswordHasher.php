@@ -51,6 +51,7 @@ class PBKDF2PasswordHasher implements IPasswordHasher {
         $salt = base64_encode($salt);
         $hash = self::PBKDF2($algo, $password, $salt, $iterations, $hash_len);
         $hash = $algo.':'.$iterations.':'.$salt.':'.base64_encode($hash);
+
         return $hash;
     }
 
@@ -64,14 +65,15 @@ class PBKDF2PasswordHasher implements IPasswordHasher {
      */
     public static function test_password($password, $hash) {
         $sections = array_flip(G::$G['SEC']['PBKDF2']['sections']);
-        $parts = explode(":", $hash);
+        $parts    = explode(":", $hash);
         if (count($sections) > count($parts)) {
-           return false;
+            return false;
         }
         $pbkdf2 = base64_decode($parts[$sections['PBKDF2']]);
-        $test = self::PBKDF2($parts[$sections['algo']], $password,
+        $test   = self::PBKDF2($parts[$sections['algo']], $password,
             $parts[$sections['salt']], (int)$parts[$sections['iterations']],
             strlen($pbkdf2));
+
         return $pbkdf2 == $test;
     }
 
@@ -84,7 +86,8 @@ class PBKDF2PasswordHasher implements IPasswordHasher {
      */
     public static function is_hash($hash) {
         $sections = G::$G['SEC']['PBKDF2']['sections'];
-        $parts = explode(":", $hash);
+        $parts    = explode(":", $hash);
+
         return count($sections) == count($parts);
     }
 
@@ -97,9 +100,9 @@ class PBKDF2PasswordHasher implements IPasswordHasher {
      * @param int    $iterations  number of times to hash
      * @param int    $hash_length desired length of derived key in octets
      *
+     * @return string hashed password for storage
      * @throws Exception
      *
-     * @return string hashed password for storage
      */
     public static function PBKDF2($algo, $password, $salt, $iterations, $hash_length) {
         $algo = strtolower($algo);
@@ -113,10 +116,10 @@ class PBKDF2PasswordHasher implements IPasswordHasher {
             throw new Exception('PBKDF2() Hash length must be at least 1!');
         }
 
-        $blocks = ceil($hash_length / strlen(hash($algo, '', true)));
+        $blocks      = ceil($hash_length / strlen(hash($algo, '', true)));
         $derived_key = "";
         for ($i = 1; $i <= $blocks; $i++) {
-            $prev = $salt.pack("N", $i);
+            $prev  = $salt.pack("N", $i);
             $block = $prev = hash_hmac($algo, $prev, $password, true);
             for ($j = 1; $j < $iterations; $j++) {
                 $block ^= ($prev = hash_hmac($algo, $prev, $password, true));

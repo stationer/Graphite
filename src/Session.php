@@ -20,6 +20,28 @@ namespace Stationer\Graphite;
  * @author   Tyler Uebele
  * @license  MIT https://github.com/stationer/Graphite/blob/master/LICENSE
  * @link     https://github.com/stationer/Graphite
+ *
+ * Session methods supported via __call() which are not explicitly wrapped herein
+ * @method abort
+ * @method cache_expire
+ * @method cache_limiter
+ * @method commit
+ * @method create_id
+ * @method decode
+ * @method destroy
+ * @method encode
+ * @method gc
+ * @method get_cookie_params
+ * @method id
+ * @method module_name
+ * @method name
+ * @method register_shutdown
+ * @method reset
+ * @method save_path
+ * @method set_cookie_params
+ * @method set_save_handler
+ * @method status
+ * @method unset
  */
 class Session {
     /** @var Session $instance */
@@ -34,10 +56,18 @@ class Session {
     /** @var string $session_id PHP's Session ID for re-opening */
     private $session_id = null;
 
+    /** @var bool Whether to run in CLI mode */
+    private $CLI_Mode = false;
+
+    /** @var array Store the initial session array so we can patch on re-open */
+    private $initialSessionArray = null;
+
     /**
      * Private constructor to prevent instantiation
      */
     private function __construct() {
+        // OnBDC-913: Prevent use of sessions from CLI
+        $this->CLI_Mode = 'cli' == php_sapi_name();
     }
 
     /**
@@ -115,10 +145,18 @@ class Session {
      * @return bool pass through value from session_start()
      */
     public function start() {
-        if (null != $this->session_id) {
+        // Prevent use of sessions from CLI
+        if ($this->CLI_Mode) {
+            $_SESSION = $_SESSION ?? [];
+
+            return $this->open = true;
+        }
+        // Cannot change session id when session is active
+        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent() && null != $this->session_id) {
             session_id($this->session_id);
         }
-        if (true !== $this->open) {
+        // Cannot start session when headers already sent
+        if (true !== $this->open && !headers_sent()) {
             // If we already have a session, preserve its data for the re-open
             if (isset($_SESSION)) {
                 $temp       = $_SESSION;
@@ -144,6 +182,12 @@ class Session {
      * @return void
      */
     public function write_close() {
+        // Prevent use of sessions from CLI
+        if ($this->CLI_Mode) {
+            $this->open = false;
+
+            return;
+        }
         // Sort and compare current session state to last known state
         ksort($_SESSION);
         $state = md5(json_encode($_SESSION));
@@ -163,6 +207,9 @@ class Session {
      * @return bool
      */
     public function regenerate_id() {
+        if ($this->CLI_Mode) {
+            return false;
+        }
         // Make sure we have an open session
         $this->start();
         $return = session_regenerate_id();
@@ -180,17 +227,51 @@ class Session {
      * @return mixed Return value of PHP session_* function
      */
     public function __call($func, $argv) {
-        if ('cli' == php_sapi_name()) {
+        if ($this->CLI_Mode) {
             return false;
         }
         if (function_exists('session_'.$func)) {
             // Make sure we have an open session
             $this->start();
+
             return call_user_func_array('session_'.$func, $argv);
         }
         $trace = debug_backtrace();
         trigger_error('Undefined property via '.__METHOD__.': '
             .$func.' in '.$trace[1]['file'].' on line '.$trace[1]['line'],
             E_USER_NOTICE);
+
+        return false;
+    }
+
+    /**
+     * Kill a session:
+     *  1. Unset its data
+     *  2. Destroy it locally
+     *  3. Destroy its cookie
+     *
+     * @return void
+     */
+    public function kill() {
+        // Prevent use of sessions from CLI
+        if ($this->CLI_Mode) {
+            $this->open = false;
+            $_SESSION   = [];
+
+            return;
+        }
+        $this->start();
+        $this->unset();
+        // Trying to destroy uninitialized session
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $this->destroy();
+        }
+        $this->write_close();
+        if (ini_get("session.use_cookies") && !headers_sent()) {
+            $params = session_get_cookie_params();
+            // Set a blank cookie expiring at a time arbitrarily in the past
+            setcookie(session_name(), '', NOW / 2, $params["path"],
+                $params["domain"], $params["secure"], $params["httponly"]);
+        }
     }
 }

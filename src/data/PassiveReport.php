@@ -24,7 +24,7 @@ namespace Stationer\Graphite\data;
  */
 abstract class PassiveReport extends DataModel {
     /** @var array resulting data produced by load() */
-    protected $_data = array();
+    protected $_data = [];
 
     /** @var int OFFSET of query result set */
     protected $_start = 0;
@@ -33,10 +33,10 @@ abstract class PassiveReport extends DataModel {
     protected $_count = 10000;
 
     /** @var array ORDER BY of query; must be in $this->_orders array */
-    protected $_orders = array();
+    protected $_orders = [];
 
     /** @var array Whitelist of valid ORDER BY values */
-    protected $_orderables = array();
+    protected $_orderables = [];
 
     /**
      * Override this function to perform custom actions AFTER load
@@ -100,7 +100,7 @@ abstract class PassiveReport extends DataModel {
      *
      * @return array
      */
-    public function getOrders(array $orders = array()) {
+    public function getOrders(array $orders = []) {
         if (empty($orders)) {
             $orders = $this->_orders;
         }

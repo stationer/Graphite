@@ -3,7 +3,7 @@
  * ActiveRecord - core database active record class file
  * File : /src/data/ActiveRecord.php
  *
- * PHP version 7.0
+ * PHP version 7.1
  *
  * @package  Stationer\Graphite
  * @author   LoneFry <dev@lonefry.com>
@@ -12,6 +12,8 @@
  */
 
 namespace Stationer\Graphite\data;
+
+use Stationer\Graphite\G;
 
 /**
  * Record class - used as a base class for Active Record Model classes
@@ -26,7 +28,7 @@ namespace Stationer\Graphite\data;
  */
 abstract class ActiveRecord extends PassiveRecord {
     /** @var array Instance DB values of vars defined in $vars */
-    protected $DBvals = array();
+    protected $DBvals = [];
 
     /** @var string $table Name of table, defined in subclasses */
     /* protected static $table; */
@@ -82,6 +84,7 @@ abstract class ActiveRecord extends PassiveRecord {
         if (null === $this->vals[static::$pkey]) {
             return G::build(DataBroker::class)->fill($this);
         }
+
         return G::build(DataBroker::class)->select($this);
     }
 
@@ -107,6 +110,7 @@ abstract class ActiveRecord extends PassiveRecord {
         }
         if (0 == $result->num_rows) {
             $result->close();
+
             return false;
         }
         $row = $result->fetch_assoc();
@@ -119,6 +123,7 @@ abstract class ActiveRecord extends PassiveRecord {
             unset($row[$k]);
         }
         $this->onload($row);
+
         return $row;
     }
 
@@ -155,6 +160,7 @@ abstract class ActiveRecord extends PassiveRecord {
         }
         if (0 == $result->num_rows) {
             $result->close();
+
             return false;
         }
         $row = $result->fetch_assoc();
@@ -167,6 +173,7 @@ abstract class ActiveRecord extends PassiveRecord {
             unset($row[$k]);
         }
         $this->onload($row);
+
         return $row;
     }
 
@@ -230,12 +237,12 @@ abstract class ActiveRecord extends PassiveRecord {
             .('rand()' == $order ? ' ORDER BY RAND() '.($desc ? 'desc' : 'asc') : '')
             .(is_numeric($count) && is_numeric($start)
                 ? ' LIMIT '.((int)$start).','.((int)$count)
-                : '')
-            ;
-        if (false === $result = G::$m->query($query)) {
+                : '');
+        $result = G::$m->query($query);
+        if (false === $result) {
             return false;
         }
-        $a = array();
+        $a = [];
         while ($row = $result->fetch_assoc()) {
             $a[$row[static::$pkey]] = new static();
             $a[$row[static::$pkey]]->load_array($row);
@@ -283,18 +290,18 @@ abstract class ActiveRecord extends PassiveRecord {
      *
      * @return array Collection of objects found in search
      */
-    public static function search_ids($ids = array(), $count = null, $start = 0, $order = null, $desc = false) {
+    public static function search_ids($ids = [], $count = null, $start = 0, $order = null, $desc = false) {
         if (!is_array($ids)) {
             return false;
         }
-        $a = array();
+        $a = [];
         foreach ($ids as $k => $v) {
             if (is_numeric($v)) {
                 $a[] = $v;
             }
         }
         if (1 > count($a)) {
-            return array();
+            return [];
         }
         $where = "WHERE t.`".static::$pkey."` IN (".implode(',', $a).")";
 
@@ -306,15 +313,16 @@ abstract class ActiveRecord extends PassiveRecord {
      *
      * @param int $id Numeric id to SELECT record for
      *
-     * @deprecated
+     * @return object Object for specified ID
      * @see ActiveRecord::byPK
      *
-     * @return object Object for specified ID
+     * @deprecated
      */
     public static function byId($id) {
         trigger_error('Call to deprecated method: '.__METHOD__, E_USER_DEPRECATED);
         $R = new static($id);
         G::build(DataBroker::class)->load($R);
+
         return $R;
     }
 
@@ -327,12 +335,13 @@ abstract class ActiveRecord extends PassiveRecord {
      */
     public static function byPK($val) {
         trigger_error('Call to deprecated method: '.__METHOD__, E_USER_DEPRECATED);
-        $R = new static();
-        $pkey = static::$pkey;
+        $R        = new static();
+        $pkey     = static::$pkey;
         $R->$pkey = $val;
         if (false === G::build(DataBroker::class)->select($R)) {
             return false;
         }
+
         return $R;
     }
 
@@ -347,8 +356,8 @@ abstract class ActiveRecord extends PassiveRecord {
         if (null === $this->vals[static::$pkey]) {
             return G::build(DataBroker::class)->insert($this);
         }
-        return G::build(DataBroker::class)->update($this);
 
+        return G::build(DataBroker::class)->update($this);
     }
 
     /**
@@ -389,6 +398,7 @@ abstract class ActiveRecord extends PassiveRecord {
         foreach (array_keys(static::$vars) as $field) {
             $this->DBvals[$field] = $this->vals[$field];
         }
+
         return $this->vals[static::$pkey];
     }
 
@@ -410,7 +420,7 @@ abstract class ActiveRecord extends PassiveRecord {
             return null;
         }
         $this->oninsert();
-        $fields = '';
+        $fields                      = '';
         $this->DBvals[static::$pkey] = null;
         foreach (array_keys($this->getDiff()) as $field) {
             if ('b' == static::$vars[$field]['type']) {
@@ -421,7 +431,7 @@ abstract class ActiveRecord extends PassiveRecord {
         }
 
         $fields = substr($fields, 0, -1);
-        $query .= $fields.' ON DUPLICATE KEY UPDATE'.$fields;
+        $query  .= $fields.' ON DUPLICATE KEY UPDATE'.$fields;
         if (false === G::$M->query($query)) {
             return false;
         }
@@ -475,6 +485,7 @@ abstract class ActiveRecord extends PassiveRecord {
         foreach (array_keys(static::$vars) as $field) {
             $this->DBvals[$field] = $this->vals[$field];
         }
+
         return true;
     }
 
@@ -495,6 +506,7 @@ abstract class ActiveRecord extends PassiveRecord {
         if (false === G::$M->query($query)) {
             return false;
         }
+
         return true;
     }
 
@@ -505,6 +517,7 @@ abstract class ActiveRecord extends PassiveRecord {
      */
     public static function drop() {
         $query = "DROP TABLE IF EXISTS `".static::$table."`";
+
         return G::$M->query($query);
     }
 
@@ -539,6 +552,7 @@ abstract class ActiveRecord extends PassiveRecord {
      */
     public static function describe() {
         $query = "DESCRIBE `".static::$table."`";
+
         return G::$m->queryToArray($query);
     }
 
@@ -550,7 +564,7 @@ abstract class ActiveRecord extends PassiveRecord {
     public static function verifyStructure() {
         $describe = static::describe();
         $config   = static::$vars;
-        $changes  = array();
+        $changes  = [];
         if (!empty($describe)) {
             foreach ($describe as $col) {
                 $back_ddl  = '`'.$col['Field'].'` '
@@ -559,8 +573,7 @@ abstract class ActiveRecord extends PassiveRecord {
                     .('' != $col['Default'] ? ' DEFAULT '.$col['Default'] : '')
                     .('' != $col['Extra'] ? ' '.strtoupper($col['Extra']) : '')
                     .('MUL' == $col['Key'] ? ', KEY (`'.$col['Field'].'`)' : '')
-                    .('UNI' == $col['Key'] ? ' UNIQUE KEY' : '')
-                ;
+                    .('UNI' == $col['Key'] ? ' UNIQUE KEY' : '');
                 $front_ddl = static::getDDL($col['Field']);
                 if ($back_ddl != $front_ddl) {
                     if (false === $front_ddl) {
@@ -575,9 +588,9 @@ abstract class ActiveRecord extends PassiveRecord {
             }
         }
         foreach ($config as $field => $col) {
-            $front_ddl = static::getDDL($field);
-            $back_ddl = false;
-            $alter = 'ADD '.$front_ddl;
+            $front_ddl       = static::getDDL($field);
+            $back_ddl        = false;
+            $alter           = 'ADD '.$front_ddl;
             $changes[$field] = compact('back_ddl', 'front_ddl', 'alter');
         }
 
@@ -585,41 +598,85 @@ abstract class ActiveRecord extends PassiveRecord {
     }
 
     /**
-     * Encrypt a string
+     * Encrypt a string using openSSL
      *
-     * @param string $a String to encrypt
+     * @param string $plaintext String to encrypt
      *
      * @return string
      */
-    public function encrypt($a) {
+    public function encrypt($plaintext) {
         if (empty(G::$G['SEC']['encryptionKey'])) {
             trigger_error('Encryption key not set!', E_USER_ERROR);
         }
-        $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_128, MCRYPT_MODE_CBC);
-        $iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-        $ciphertext = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, G::$G['SEC']['encryptionKey'], $a, MCRYPT_MODE_CBC, $iv);
-        $ciphertext = $iv . $ciphertext;
-        $ciphertext_base64 = base64_encode($ciphertext);
+
+        $cipher            = G::$G['SEC']['encryptionCipher'];
+        $iv_size           = openssl_cipher_iv_length(G::$G['SEC']['encryptionCipher']);
+        $iv                = openssl_random_pseudo_bytes($iv_size);
+        $ciphertext        = openssl_encrypt($plaintext, $cipher, G::$G['SEC']['encryptionKey'], $options = 0, $iv);
+        $ciphertext_base64 = base64_encode($iv).':'.base64_encode($ciphertext);
+
         return $ciphertext_base64;
     }
 
     /**
      * Decrypt a string
      *
-     * @param string $a String to decrypt
+     * @param string $ciphertext String to decrypt
      *
      * @return string
      */
-    public function decrypt($a) {
+    public function decrypt($ciphertext) {
         if (empty(G::$G['SEC']['encryptionKey'])) {
             trigger_error('Encryption key not set!', E_USER_ERROR);
         }
-        $ciphertext_dec = base64_decode($a);
-        $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_128, MCRYPT_MODE_CBC);
-        $iv_dec = substr($ciphertext_dec, 0, $iv_size);
-        $ciphertext_dec = substr($ciphertext_dec, $iv_size);
-        $a_dec = mcrypt_decrypt(MCRYPT_RIJNDAEL_128, G::$G['SEC']['encryptionKey'],
-            $ciphertext_dec, MCRYPT_MODE_CBC, $iv_dec);
-        return rtrim($a_dec, chr(0));
+        $cipher = G::$G['SEC']['encryptionCipher'];
+        $split  = explode(':', $ciphertext);
+        if (count($split) !== 2) {
+            return false;
+        }
+        [$iv, $ciphertext] = $split;
+        $iv                 = base64_decode($iv);
+        $ciphertext         = base64_decode($ciphertext);
+        $original_plaintext = openssl_decrypt($ciphertext, $cipher, G::$G['SEC']['encryptionKey'], $options = 0, $iv);
+
+        return $original_plaintext;
+    }
+
+    /**
+     * SELECT COUNT() all the records from the database using static::$query
+     * add all set values to the WHERE clause, returns collection
+     *
+     * @param string $where Custom WHERE clause
+     *
+     * @return array Collection of objects found in search
+     */
+    public function count($where = "WHERE 1") {
+        trigger_error('Call to deprecated method: '.__METHOD__, E_USER_DEPRECATED);
+        // embed pkey value into instance SELECT query, then run
+        $query = '';
+        foreach (static::$vars as $k => $v) {
+            if (null !== $this->vals[$k]) {
+                if ('b' == static::$vars[$k]['type']) {
+                    $query .= " AND t.`$k` = ".($this->vals[$k] ? '1' : '0');
+                } else {
+                    $query .= " AND t.`$k` = '".G::$m->escape_string($this->vals[$k])."'";
+                }
+            }
+        }
+
+        // if no fields were set, return false
+        if ('' == $query) {
+            return null;
+        }
+
+        $query = "SELECT COUNT(`".static::$pkey."`) FROM `".static::$table."` t ".$where." ".$query;
+        if (false === $result = G::$m->query($query)) {
+            return false;
+        }
+        // We should find exactly one value
+        $count = $result->fetch_array()[0];
+        $result->close();
+
+        return $count;
     }
 }

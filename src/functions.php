@@ -66,7 +66,7 @@ function updateQueryString($url, $variable, $value) {
     $query   = [];
 
     if (strpos($url, '?') !== false) {
-        $parts       = explode('?', $url);
+        $parts       = explode('?', $url, 2);
         $baseUrl     = reset($parts);
         $queryString = end($parts);
 
@@ -186,6 +186,27 @@ function array_filter_ids(array $data) {
 }
 
 /**
+ * Dumps an array in a single line for brief output
+ *
+ * @param mixed $a Array to dump
+ *
+ * @return string Array values
+ */
+function array_value_dump($a) {
+    if (is_array($a)) {
+        return '['.implode(', ', array_map(__FUNCTION__, $a)).']';
+    } elseif (is_string($a)) {
+        return "'".$a."'";
+    } elseif (is_bool($a)) {
+        return ($a ? 'true' : 'false');
+    } elseif (is_null($a)) {
+        return 'null';
+    } else {
+        return $a;
+    }
+}
+
+/**
  * Helper for brevity in templates - echo html escaped string
  *
  * @param string $s String to output
@@ -259,7 +280,7 @@ function croak_sub($value, $openDepth = 99) {
         echo "</div></details>}\n";
     } elseif (is_object($value)) {
         // For objects, capture var_dump output and use the first line as the <summary> for a <details>
-        list($key, $val) = explode("\n", ob_var_dump($value), 2);
+        [$key, $val] = explode("\n", ob_var_dump($value), 2);
         echo '<details', (0 < $openDepth ? ' open=\"open\"' : ''), '><summary>', $key, '</summary><div>'
         , htmlspecialchars(rtrim(rtrim($val), '}'))
         , "</div></details>}\n";
@@ -299,4 +320,17 @@ function array_to_csv(array $array, array $headers = null) {
     fclose($file);
 
     return ob_get_clean();
+}
+
+/**
+ * Set header() if headers not already sent (avoid the warning)
+ *
+ * @param string $thisHeader         Header string
+ * @param bool   $replace            If true, should replace a previous similar header
+ * @param int    $http_response_code Force the HTTP response code
+ *
+ * @return void
+ */
+function header_if_not_sent($thisHeader, bool $replace = true, int $http_response_code = null) {
+    headers_sent() || header($thisHeader, $replace, $http_response_code);
 }

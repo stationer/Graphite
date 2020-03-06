@@ -52,7 +52,7 @@ abstract class DataProvider implements IDataProvider {
             }
         }
 
-        $result = $this->fetch($class, array($class::getPkey() => $pkey));
+        $result = $this->fetch($class, [$class::getPkey() => $pkey]);
 
         if (!is_array($pkey)) {
             if (!isset($result[$pkey])) {
@@ -84,7 +84,7 @@ abstract class DataProvider implements IDataProvider {
             trigger_error('Supplied class name does not extend PassiveRecord', E_USER_ERROR);
         }
 
-        $result = $this->fetch($class, array($class::getPkey() => $pkey));
+        $result = $this->fetch($class, [$class::getPkey() => $pkey]);
 
         if (!isset($result[$pkey])) {
             $this->insert($Model);
@@ -122,9 +122,10 @@ abstract class DataProvider implements IDataProvider {
             return null;
         }
 
-        $results = $this->fetch(get_class($Model), array($Model->getPkey() => $Model->{$Model->getPkey()}));
+        $results = $this->fetch(get_class($Model), [$Model->getPkey() => $Model->{$Model->getPkey()}]);
         if (!empty($results) && count($results)) {
             $Model = array_shift($results);
+
             return true;
         }
 
@@ -146,7 +147,7 @@ abstract class DataProvider implements IDataProvider {
             return null;
         }
 
-        $results = $this->fetch(get_class($Model), $params, array(), 1, 0);
+        $results = $this->fetch(get_class($Model), $params, [], 1, 0);
         if (count($results)) {
             $Model = array_shift($results);
 

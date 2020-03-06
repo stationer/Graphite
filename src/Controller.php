@@ -33,7 +33,7 @@ abstract class Controller {
     /** @var string Which REQUEST_METHOD to act under */
     protected $method = '';
     /** @var array Argument list passed from Dispatcher */
-    protected $argv = array();
+    protected $argv = [];
     /** @var IDataProvider $DB */
     protected $DB;
     /** @var  View $View */
@@ -48,7 +48,7 @@ abstract class Controller {
      * @param IDataProvider $DB   DataProvider to use with Controller
      * @param View          $View Graphite View helper
      */
-    public function __construct(array $argv = array(), IDataProvider $DB = null, View $View = null) {
+    public function __construct(array $argv = [], IDataProvider $DB = null, View $View = null) {
         $this->method = $_SERVER['REQUEST_METHOD'];
         // check for header "X-HTTP-Method-Override"
         if ('POST' == $this->method && function_exists('apache_request_headers')) {
@@ -84,9 +84,9 @@ abstract class Controller {
      *
      * @return View
      */
-    public function do_403(array $argv = array(), array $request = array()) {
-        header("HTTP/1.0 403 Forbidden");
-        $this->action = '403';
+    public function do_403(array $argv = [], array $request = []) {
+        header_if_not_sent("HTTP/1.0 403 Forbidden");
+        $this->action          = '403';
         $this->View->_template = '403.php';
         $this->View->_header   = 'bookends/public.header.php';
         $this->View->_footer   = 'bookends/public.footer.php';
@@ -113,6 +113,7 @@ abstract class Controller {
                 $this->action = '';
             }
         }
+
         return $this->action;
     }
 
@@ -143,13 +144,16 @@ abstract class Controller {
 
         switch ($this->method) {
             case 'GET':
-                $params = $_GET;
+                $params = (array)$_GET;
                 break;
             case 'POST':
-                $params = $_POST;
+                $params = (array)$_POST;
                 break;
             default:
-                parse_str(php_getRawInputBody(), $params);
+                $params = if_json_decode(php_getRawInputBody(), JSON_OBJECT_AS_ARRAY);
+                if (false === $params) {
+                    parse_str(php_getRawInputBody(), $params);
+                }
                 $GLOBALS['_'.$this->method] = $params;
                 break;
         }
@@ -175,12 +179,13 @@ abstract class Controller {
                 return $this->action($value);
             case 'method':
                 $this->method = $value;
+
                 return $this->method;
             default:
                 $trace = debug_backtrace();
                 trigger_error('Undefined property via __set(): '.$name.' in '
-                              .$trace[0]['file'].' on line '.$trace[0]['line'],
-                              E_USER_NOTICE);
+                    .$trace[0]['file'].' on line '.$trace[0]['line'],
+                    E_USER_NOTICE);
                 break;
         }
 
@@ -203,8 +208,8 @@ abstract class Controller {
             default:
                 $trace = debug_backtrace();
                 trigger_error('Undefined property via __get(): '.$name.' in '
-                              .$trace[0]['file'].' on line '.$trace[0]['line'],
-                              E_USER_NOTICE);
+                    .$trace[0]['file'].' on line '.$trace[0]['line'],
+                    E_USER_NOTICE);
                 break;
         }
 
@@ -224,11 +229,13 @@ abstract class Controller {
 
         if (!empty($messages) && $retainMessageLog === true) {
             $hash = G::storeMsg();
-            $url = updateQueryString($url, self::MSGID_PARAM_NAME, $hash);
+            $url  = updateQueryString($url, self::MSGID_PARAM_NAME, $hash);
+        } else {
+            $url = encodeQueryString($url);
         }
 
-        header("HTTP/1.1 303 See Other");
-        header("Location: ".$url);
+        header_if_not_sent("HTTP/1.1 303 See Other");
+        header_if_not_sent("Location: ".$url);
         G::close();
         die();
     }

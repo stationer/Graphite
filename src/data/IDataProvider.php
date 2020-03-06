@@ -36,7 +36,7 @@ interface IDataProvider {
      *
      * @return array Found records
      */
-    public function fetch($class, array $params = array(), array $orders = array(), $count = null, $start = 0);
+    public function fetch($class, array $params = [], array $orders = [], $count = null, $start = 0);
 
     /**
      * Search for records of type $class according to provided primary key(s)

@@ -40,6 +40,9 @@ final class G {
     /** @var Factory Object */
     public static $Factory;
 
+    /** @var null Placeholder for Logging object */
+    public static $Log;
+
     /** @var array Stores messages to be displayed to the user */
     private static $_msg = [];
 
@@ -159,9 +162,9 @@ final class G {
      *
      * @param mixed $v value to var_dump
      *
+     * @return void
      * @deprecated
      *
-     * @return void
      */
     public static function croak($v = null) {
         $debug = debug_backtrace();

@@ -25,22 +25,22 @@ namespace Stationer\Graphite;
  */
 class View {
     /** @var array registered templates by type */
-    protected $templates = array(
+    protected $templates = [
         'header'   => 'header.php',
         'footer'   => 'footer.php',
         'template' => '404.php',
         'login'    => 'Account.Login.Form.php',
-        );
+    ];
     /** @var array List of paths in which to find templates */
-    protected $includePath = array();
+    protected $includePath = [];
     /** @var array Values to expose to templates */
-    public $vals = array(
-        '_meta'   => array(),
-        '_script' => array(),
-        '_link'   => array(),
+    public $vals = [
+        '_meta'   => [],
+        '_script' => [],
+        '_link'   => [],
         '_head'   => '',
         '_tail'   => '',
-        );
+    ];
 
     public $_format = null;
 
@@ -130,6 +130,9 @@ class View {
         if (null === $src) {
             return $this->vals['_script'];
         }
+        if (!is_string($src) || empty($src)) {
+            return false;
+        }
         if (preg_match('~^/[^/].*/\w+\.\w+\.js$~', $src)) {
             $src = $src.'?v='.VERSION;
         }
@@ -152,7 +155,7 @@ class View {
         if (null === $rel) {
             return $this->vals['_link'];
         }
-        $this->vals['_link'][] = array('rel' => $rel, 'type' => $type, 'href' => $href, 'title' => $title);
+        $this->vals['_link'][] = ['rel' => $rel, 'type' => $type, 'href' => $href, 'title' => $title];
 
         return null;
     }
@@ -167,6 +170,9 @@ class View {
      */
     public function _style($src = null) {
         if (null === $src) {
+            return false;
+        }
+        if (!is_string($src) || empty($src)) {
             return false;
         }
         if (preg_match('~^/[^/].*/\w+\.\w+\.css$~', $src)) {
@@ -195,6 +201,7 @@ class View {
         if (false !== strpos($s, $path) && file_exists($s)) {
             return substr($s, strlen($path));
         }
+
         return false;
     }
 
@@ -214,7 +221,8 @@ class View {
                 break;
             }
         }
-        return ifset($this->templates[$template]);
+
+        return ($this->templates[$template] ?? null);
     }
 
     /**
@@ -226,19 +234,18 @@ class View {
      * @return string Prior set template
      */
     public function getTemplate($template) {
-        return ifset($this->templates[$template]);
+        return ($this->templates[$template] ?? null);
     }
-
 
     /**
      * __set magic method called when trying to set a var which is not available
      * If name is of a template this will passoff the set to setTemplate()
      * All other names will be added to unrestricted vals array
      *
-     *  @param string $name  Property to set
-     *  @param mixed  $value Value to use
+     * @param string $name  Property to set
+     * @param mixed  $value Value to use
      *
-     *  @return mixed
+     * @return mixed
      */
     function __set($name, $value) {
         switch ($name) {
@@ -279,8 +286,8 @@ class View {
                 }
                 $trace = debug_backtrace();
                 trigger_error('Undefined property via __get(): '.$name.' in '
-                              .$trace[0]['file'].' on line '.$trace[0]['line'],
-                              E_USER_NOTICE);
+                    .$trace[0]['file'].' on line '.$trace[0]['line'],
+                    E_USER_NOTICE);
                 break;
         }
 
@@ -319,9 +326,9 @@ class View {
             $ver = isset(G::$G['VIEW']['version']) ? G::$G['VIEW']['version'] : 0;
             // JS
             foreach ($this->vals['_script'] as $key => $scriptName) {
-                $minFile = '/min/' . $this->_getMinName($scriptName);
-                if (file_exists(SITE . $minFile)) {
-                    $this->vals['_script'][$key] = $minFile . '?ver=' . $ver;
+                $minFile = '/min/'.$this->_getMinName($scriptName);
+                if (file_exists(SITE.$minFile)) {
+                    $this->vals['_script'][$key] = $minFile.'?ver='.$ver;
                 }
             }
 
@@ -330,9 +337,9 @@ class View {
                 if ($link['type'] !== 'text/css') {
                     continue;
                 }
-                $minFile = SITE . '/min/' . $this->_getMinName($link['href']);
-                if (file_exists(SITE . $minFile)) {
-                    $this->vals['_link'][$key]['href'] = $minFile . '?ver=' . $ver;
+                $minFile = SITE.'/min/'.$this->_getMinName($link['href']);
+                if (file_exists(SITE.$minFile)) {
+                    $this->vals['_link'][$key]['href'] = $minFile.'?ver='.$ver;
                 }
             }
         }
@@ -355,15 +362,15 @@ class View {
             ini_set("pcre.backtrack_limit", "1000000");
             $styleSheets = $this->_getStyleSheetUrls();
             foreach ($styleSheets as $link) {
-                $css = file_get_contents(SITE . $link);
+                $css = file_get_contents(SITE.$link);
                 // In PDF format body tags lose classes.  This keeps body styles still relevant
                 if (isset($this->vals['_controller']) && isset($this->vals['_action'])) {
                     $css = str_replace(
-                        'body.' . $this->vals['_controller'] . '-' . $this->vals['_action'],
+                        'body.'.$this->vals['_controller'].'-'.$this->vals['_action'],
                         'body',
                         $css
                     );
-                    $css = str_replace('body.' . $this->vals['_controller'], 'body', $css);
+                    $css = str_replace('body.'.$this->vals['_controller'], 'body', $css);
                 }
                 $mpdf->WriteHTML($css, 1);
             }
@@ -381,13 +388,14 @@ class View {
      * @return array
      */
     private function _getStyleSheetUrls() {
-        $styleSheets = array();
+        $styleSheets = [];
         foreach ($this->vals['_link'] as $link) {
             if ($link['rel'] !== 'stylesheet') {
                 continue;
             }
             $styleSheets[] = $link['href'];
         }
+
         return $styleSheets;
     }
 
@@ -424,6 +432,7 @@ class View {
             ) {
                 ob_start();
                 include $_v.$this->templates[$_template];
+
                 return ob_get_clean();
             }
         }
@@ -441,12 +450,22 @@ class View {
      */
     private function _getMinName($filename) {
         $basename = basename($filename);
-        $ext = strrchr($basename, '.');
-        if (strpos($basename, '.min' . $ext) === false) {
-            $final = substr($basename, 0, strripos($basename, '.')) . '.min' . $ext;
+        $ext      = strrchr($basename, '.');
+        if (strpos($basename, '.min'.$ext) === false) {
+            $final = substr($basename, 0, strripos($basename, '.')).'.min'.$ext;
         } else {
             $final = $basename;
         }
+
         return $final;
+    }
+
+    /**
+     * Set array of values to the View
+     *
+     * @param array $values Array of values to set
+     */
+    public function setValues($values) {
+        $this->vals = array_merge($this->vals, $values);
     }
 }

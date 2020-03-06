@@ -13,6 +13,8 @@
 
 namespace Stationer\Graphite\data;
 
+use Stationer\Graphite\G;
+
 /**
  * DataModel class - used as a base class for Record and Report data classes
  * Shared Functionality of Record and Report base classes
@@ -32,15 +34,15 @@ abstract class DataModel implements \ArrayAccess {
     protected static $dateFormat = 'Y-m-d H:i:s';
 
     /** @var array Instance values of vars defined in $vars */
-    protected $vals = array();
+    protected $vals = [];
 
     /** @var array Invalid values */
-    protected $invalidVals = array();
+    protected $invalidVals = [];
 
     /** @var string Database Source to use */
     protected $_source = 'default';
 
-    /** @var array $vars, defined in subclasses */
+    /** @var array $vars , defined in subclasses */
     // protected static $vars = array();
 
     /**
@@ -63,7 +65,7 @@ abstract class DataModel implements \ArrayAccess {
         if (true === $a) {
             $this->defaults();
         } elseif (is_numeric($a)) {
-            $this->setAll(array(static::$pkey => $a));
+            $this->setAll([static::$pkey => $a]);
         } else {
             if (true === $b) {
                 $this->defaults();
@@ -127,22 +129,23 @@ abstract class DataModel implements \ArrayAccess {
      *  2. for a method specific to each var's type
      *  3. the raw value
      *
-     *  @return array Record values
+     * @return array Record values
      */
     public function getAll() {
-        $a = array();
+        $a = [];
         foreach (static::$vars as $k => $v) {
             if (null === $this->vals[$k]) {
                 $a[$k] = null;
             } elseif (method_exists($this, $k)) {
                 $a[$k] = $this->$k();
             } elseif (method_exists($this, '_'.$v['type'])) {
-                $func = '_'.$v['type'];
+                $func  = '_'.$v['type'];
                 $a[$k] = $this->$func($k);
             } else {
                 $a[$k] = $this->vals[$k];
             }
         }
+
         return $a;
     }
 
@@ -157,7 +160,9 @@ abstract class DataModel implements \ArrayAccess {
      *
      * @return array elements which were not used
      */
-    public function setAll($a, $guard = true) {
+    public function setAll(array $a, ?bool $guard = null) {
+        $guard = $guard ?? G::$G['db']['guard'];
+
         foreach (static::$vars as $k => $v) {
             if (!isset($a[$k])) {
                 // field not passed
@@ -169,6 +174,7 @@ abstract class DataModel implements \ArrayAccess {
             $this->__set($k, $a[$k]);
             unset($a[$k]);
         }
+
         return $a;
     }
 
@@ -205,10 +211,10 @@ abstract class DataModel implements \ArrayAccess {
      *  1. a method specific to the var's key (name)
      *  2. a method specific to the var's type
      *
-     *  @param string $k property to set
-     *  @param mixed  $v value to use
+     * @param string $k property to set
+     * @param mixed  $v value to use
      *
-     *  @return mixed set value on success, null on failure
+     * @return mixed set value on success, null on failure
      */
     public function __set($k, $v) {
         // If a custom method exists for var, call it
@@ -231,11 +237,13 @@ abstract class DataModel implements \ArrayAccess {
             trigger_error('Undefined property type via __set(): '.$k
                 .' in '.$trace[0]['file'].' on line '.$trace[0]['line'],
                 E_USER_NOTICE);
+
             return null;
         }
 
         // Finally, set the value through its type handler
         $func = '_'.static::$vars[$k]['type'];
+
         return $this->$func($k, $v);
     }
 
@@ -245,9 +253,9 @@ abstract class DataModel implements \ArrayAccess {
      *  1. a method specific to the var's key (name)
      *  2. a method specific to the var's type
      *
-     *  @param string $k property to get
+     * @param string $k property to get
      *
-     *  @return mixed requested value if found, null on failure
+     * @return mixed requested value if found, null on failure
      */
     public function __get($k) {
         // If a custom method exists for var, call it
@@ -272,6 +280,7 @@ abstract class DataModel implements \ArrayAccess {
 
         // Finally, request the value through its type handler
         $func = '_'.static::$vars[$k]['type'];
+
         return $this->$func($k);
     }
 
@@ -341,11 +350,11 @@ abstract class DataModel implements \ArrayAccess {
      */
     protected function inRange($field, $value) {
         return (!isset(static::$vars[$field]['min'])
-            || !is_numeric(static::$vars[$field]['min'])
-            || $value >= static::$vars[$field]['min'])
-        && (!isset(static::$vars[$field]['max'])
-            || !is_numeric(static::$vars[$field]['max'])
-            || $value <= static::$vars[$field]['max']);
+                || !is_numeric(static::$vars[$field]['min'])
+                || $value >= static::$vars[$field]['min'])
+            && (!isset(static::$vars[$field]['max'])
+                || !is_numeric(static::$vars[$field]['max'])
+                || $value <= static::$vars[$field]['max']);
     }
 
     /**
@@ -361,7 +370,7 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
             if (isset(static::$vars[$k]['strict'])
                 && static::$vars[$k]['strict']
@@ -385,6 +394,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return $this->vals[$k];
     }
 
@@ -401,7 +411,7 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
             if (isset(static::$vars[$k]['strict'])
                 && static::$vars[$k]['strict']
@@ -425,6 +435,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return $this->vals[$k];
     }
 
@@ -441,9 +452,9 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
-            $strict = isset(static::$vars[$k]['strict'])
+            $strict                = isset(static::$vars[$k]['strict'])
                 && static::$vars[$k]['strict'];
 
             if (!isset(static::$vars[$k]['values'])
@@ -454,7 +465,7 @@ abstract class DataModel implements \ArrayAccess {
                     .' in '.$trace[0]['file'].' on line '.$trace[0]['line'],
                     E_USER_NOTICE);
             } elseif (false !== $i = array_search($v,
-                                        static::$vars[$k]['values'], $strict)
+                    static::$vars[$k]['values'], $strict)
             ) {
                 $this->vals[$k] = static::$vars[$k]['values'][$i];
                 unset($this->invalidVals[$k]);
@@ -463,6 +474,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return $this->vals[$k];
     }
 
@@ -480,7 +492,7 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
             if (isset(static::$vars[$k]['format'])) {
                 $format = static::$vars[$k]['format'];
@@ -514,6 +526,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return $this->vals[$k];
     }
 
@@ -531,7 +544,7 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
             // don't clobber passed-in typestamps
             if (!is_numeric($v)) {
@@ -560,6 +573,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return $this->vals[$k];
     }
 
@@ -577,7 +591,7 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
             if (isset(static::$vars[$k]['strict'])
                 && static::$vars[$k]['strict']
@@ -602,7 +616,43 @@ abstract class DataModel implements \ArrayAccess {
                 }
             }
         }
+
         return $this->vals[$k];
+    }
+
+    /**
+     * Passwords
+     *
+     * @param string $k property to get/set
+     *
+     * @return mixed current value, if setting, resultant value
+     */
+    protected function _p($k) {
+        if (null === $this->_isVar($k)) {
+            return null;
+        }
+        // Setting
+        if (1 < count($a = func_get_args())) {
+            $v = $a[1];
+            // If non-base64 characters are found, input is not encrypted
+            if (preg_match('~[^a-zA-Z0-9/+=:]~', $v)
+                // if very short, input is not encrypted
+                || 50 > strlen($v) && 0 < strlen($v)
+                // If decrypt returns false, input is not encrypted
+                || false === $this->decrypt($v)
+            ) {
+                $v = $this->encrypt($v);
+            }
+            $this->_s($k, $v);
+        }
+
+        // Getting
+        $value = $this->decrypt($this->vals[$k]);
+        if (false === $value) {
+            $value = $this->vals[$k];
+        }
+
+        return $value;
     }
 
     /**
@@ -618,13 +668,14 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
+            $email                 = str_replace(G::$G[self::class]['InternationalCharacters'], 'F', $v);
             $this->invalidVals[$k] = $v;
             if (isset(static::$vars[$k]['strict'])
                 && static::$vars[$k]['strict']
             ) {
                 if ($this->inRange($k, strlen($v))
-                    && (false !== filter_var($v, FILTER_VALIDATE_EMAIL))
+                    && (false !== filter_var($email, FILTER_VALIDATE_EMAIL))
                 ) {
                     $this->vals[$k] = $v;
                     unset($this->invalidVals[$k]);
@@ -640,13 +691,14 @@ abstract class DataModel implements \ArrayAccess {
                     ) {
                         $v = substr($v, 0, static::$vars[$k]['max']);
                     }
-                    if (false !== filter_var($v, FILTER_VALIDATE_EMAIL)) {
+                    if ('' == $v || false !== filter_var($email, FILTER_VALIDATE_EMAIL)) {
                         $this->vals[$k] = $v;
                         unset($this->invalidVals[$k]);
                     }
                 }
             }
         }
+
         return $this->vals[$k];
     }
 
@@ -664,7 +716,7 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
             // support entry of converted IPs
             if (is_numeric($v)) {
@@ -675,6 +727,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return long2ip($this->vals[$k]);
     }
 
@@ -693,7 +746,7 @@ abstract class DataModel implements \ArrayAccess {
             return null;
         }
         if (1 < count($a = func_get_args())) {
-            $v = $a[1];
+            $v                     = $a[1];
             $this->invalidVals[$k] = $v;
             if (isset(static::$vars[$k]['strict'])
                 && static::$vars[$k]['strict']
@@ -704,18 +757,19 @@ abstract class DataModel implements \ArrayAccess {
                         ? false
                         : filter_var($v, FILTER_VALIDATE_BOOLEAN,
                             FILTER_NULL_ON_FAILURE)
-                        )
-                    );
+                    )
+                );
                 if (null !== $tmp) {
                     $this->vals[$k] = $tmp;
                     unset($this->invalidVals[$k]);
                 }
             } else {
                 $this->vals[$k] = 1 == ord($v)
-                                  || filter_var($v, FILTER_VALIDATE_BOOLEAN);
+                    || filter_var($v, FILTER_VALIDATE_BOOLEAN);
                 unset($this->invalidVals[$k]);
             }
         }
+
         return $this->vals[$k];
     }
 
@@ -751,6 +805,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return unserialize($this->vals[$k]);
     }
 
@@ -786,6 +841,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return json_decode($this->vals[$k]);
     }
 
@@ -815,7 +871,7 @@ abstract class DataModel implements \ArrayAccess {
                 $v = $a[1];
             }
             if (!is_array($v)) {
-                $v = array($v);
+                $v = [$v];
             }
             $this->invalidVals[$k] = $v;
             // IF we have a whitelist, filter supplied value
@@ -823,7 +879,7 @@ abstract class DataModel implements \ArrayAccess {
                 && is_array(static::$vars[$k]['values'])
                 && count(static::$vars[$k]['values'])
             ) {
-                $tmp = array();
+                $tmp = [];
 
                 foreach ($v as $kk => $vv) {
                     if (in_array($vv, static::$vars[$k]['values'], $strict)) {
@@ -845,6 +901,7 @@ abstract class DataModel implements \ArrayAccess {
                 unset($this->invalidVals[$k]);
             }
         }
+
         return $this->vals[$k];
     }
 
