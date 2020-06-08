@@ -173,12 +173,20 @@ class Dispatcher {
         $Controller        = $this->controller.'Controller';
         $Controller        = G::build($Controller, $argv, $DB, G::$V);
         G::$V->setTemplate('template', $this->controller.'.'.$Controller->action().'.php');
-        if (!method_exists($Controller, 'do_'.$Controller->action())) {
+        // Get correct Controller method
+        $method = $Controller->method_supported();
+        // If not found, try a generic do_* method
+        if (!method_exists($Controller, $method)) {
+            $method = 'do_'.$Controller->action();
+        }
+        // If the appropriate method does not exist, fail to 404
+        if (!method_exists($Controller, $method)) {
             // else use 404 controller
             G::$V->_controller = strtolower($this->controller404);
             $Controller        = $this->controller404.'Controller';
             $Controller        = G::build($Controller, $argv, $DB, G::$V);
         }
+        // Whichever method we ended up with, act on it.
         $result = $Controller->act();
         if (is_a($result, View::class)) {
             G::$V = $result;

@@ -131,6 +131,9 @@ abstract class Controller {
         // Check for request_method-specific action method
         if (method_exists($this, $this->method.'_'.$this->action)) {
             $func = $this->method.'_'.$this->action;
+        } elseif ('OPTIONS' == $this->method) {
+            // An action specific OPTIONS handler does not exist
+            $func = $this->method.'_';
         } else {
             $func = 'do_'.$this->action;
         }
@@ -241,5 +244,70 @@ abstract class Controller {
         header_if_not_sent("Location: ".$url);
         G::close();
         die();
+    }
+
+    /**
+     * Return request methods supported by specified action
+     *
+     * @param string $action Specified action
+     *
+     * @return string[]
+     */
+    public function methods_for_action(string $action): array {
+        $methods = ['GET' => 'get_', 'POST' => 'post_', 'PUT' => 'put_', 'DELETE' => 'delete_'];
+        foreach ($methods as $method => $prefix) {
+            // If the request-method specific handler does not exist, remove it from the list
+            if (method_exists($this, "$prefix$action")) {
+                $methods[$method] = "$prefix$action";
+            } else {
+                unset($methods[$method]);
+            }
+        }
+        // If we have no request-method specific handlers, but we do have a generic one
+        if (empty($methods) && method_exists($this, "do_$action")) {
+            $methods = ['GET' => "do_$action", 'POST' => "do_$action", 'PUT' => "do_$action", 'DELETE' => "do_$action"];
+        }
+
+        // Always support OPTIONS, leaning on the generic OPTIONS handler as needed
+        if (method_exists($this, "options_$action")) {
+            $methods['OPTIONS'] = "options_$action";
+        } else {
+            $methods['OPTIONS'] = 'options_';
+        }
+
+        return $methods;
+    }
+
+    /**
+     * Determine and return the correct handler method for a given action and request method
+     *
+     * @param null $action Action to handle
+     * @param null $method Request method to handle
+     *
+     * @return bool|string Handler method to invoke
+     */
+    public function method_supported($action = null, $method = null) {
+        $action = $action ?? $this->action;
+        $method = $method ?? $this->method;
+        $methods = $this->methods_for_action($action);
+
+        return $methods[$method] ?? false;
+    }
+    /**
+     * Default handler for OPTIONS requests
+     *
+     * @param array $argv    Argument list passed from Dispatcher
+     * @param array $request Request_method-specific parameters
+     *
+     * @return mixed|View A Blank View
+     */
+    public function options_(array $argv = [], array $request = []) {
+        $methods = $this->methods_for_action($argv[0] ?? $this->action());
+        header("Allow: ".implode(", ", array_keys($methods)));
+        http_response_code(200);
+
+        $this->View->_template = 'blank.php';
+
+        return $this->View;
     }
 }
