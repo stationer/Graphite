@@ -25,8 +25,65 @@ use Stationer\Graphite\Profiler;
  * @license  MIT https://github.com/stationer/Graphite/blob/master/LICENSE
  * @link     https://github.com/stationer/Graphite
  *
- * @property string $error
+ * @property int    $affected_rows
+ * @property int    $connect_errno
+ * @property string $connect_error
  * @property int    $errno
+ * @property array  $error_list
+ * @property string $error
+ * @property int    $field_count
+ * @property string $client_info
+ * @property int    $client_version
+ * @property string $host_info
+ * @property string $protocol_version
+ * @property string $server_info
+ * @property int    $server_version
+ * @property string $info
+ * @property mixed  $insert_id
+ * @property string $sqlstate
+ * @property int    $thread_id
+ * @property int    $warning_count
+ *
+ * @method autocommit
+ * @method begin_transaction
+ * @method change_user
+ * @method character_set_name
+ * @method commit
+ * @method debug
+ * @method dump_debug_info
+ * @method get_charset
+ * @method get_connection_stats
+ * @method get_warnings
+ * @method init
+ * @method kill
+ * @method more_results
+ * @method multi_query
+ * @method next_result
+ * @method options
+ * @method ping
+ * @method poll
+ * @method prepare
+ * @method query
+ * @method real_connect
+ * @method real_escape_string
+ * @method real_query
+ * @method reap_async_query
+ * @method refresh
+ * @method release_savepoint
+ * @method rollback
+ * @method rpl_query_type
+ * @method savepoint
+ * @method select_db
+ * @method send_query
+ * @method set_charset
+ * @method set_local_infile_default
+ * @method set_local_infile_handler
+ * @method ssl_set
+ * @method stat
+ * @method stmt_init
+ * @method store_result
+ * @method thread_safe
+ * @method use_result
  * @method string escape_string(string $s)
  */
 class mysqli_ {
@@ -46,7 +103,16 @@ class mysqli_ {
     private $_mysqli;
 
     /** @var bool Whether connection succeeded */
-    private $_open = false;
+    private $_inner_is_open = false;
+
+    /** @var bool Whether to pretend we're open */
+    private $_outer_is_open = false;
+
+    /** @var bool Whether to close inner connection between calls */
+    private $_sparse = false;
+
+    /** @var array Store inner properties before closing inner connection */
+    private $_inner_properties = [];
 
     /** @var bool Whether connection has readonly credentials */
     public $readonly = false;
@@ -54,23 +120,29 @@ class mysqli_ {
     /**
      * mysqli_ constructor
      *
-     * @param string $host pass through to mysqli - hostname of DB server
-     * @param string $user pass through to mysqli - DB username
-     * @param string $pass pass through to mysqli - DB password
-     * @param string $db   pass through to mysqli - DB name
-     * @param string $port pass through to mysqli
-     * @param string $sock pass through to mysqli
-     * @param string $tabl table prefix
-     * @param bool   $log  whether to enable query logging
+     * @param string $host   pass through to mysqli - hostname of DB server
+     * @param string $user   pass through to mysqli - DB username
+     * @param string $pass   pass through to mysqli - DB password
+     * @param string $db     pass through to mysqli - DB name
+     * @param string $port   pass through to mysqli
+     * @param string $sock   pass through to mysqli
+     * @param string $tabl   table prefix
+     * @param bool   $log    whether to enable query logging
+     * @param bool   $sparse whether to close inner connection between calls
      */
     public function __construct($host, $user, $pass, $db, $port = null,
-                                $sock = null, $tabl = '', $log = false
+                                $sock = null, $tabl = '', $log = false, $sparse = false
     ) {
         $this->_connectionParam = [$host, $user, $pass, $db, $port, $sock];
-        $this->_mysqli          = new mysqli(...$this->_connectionParam);
-        if (!mysqli_connect_error()) {
-            $this->_open = true;
+        $this->_sparse          = $sparse;
+        $this->_outer_is_open   = true;
+        $this->_inner_open();
+        // If the initial open worked, set our pretense and close the inner connection
+        if ($this->_inner_is_open) {
             self::$_tabl = $this->_mysqli->escape_string($tabl);
+            $this->_inner_close();
+        } else {
+            $this->_outer_is_open = false;
         }
         self::$_log = $log;
     }
@@ -84,6 +156,7 @@ class mysqli_ {
 
     /**
      * Pass unknown function calls to mysqli (because, this class used to extend mysqli)
+     * Re-open the inner connection prior to delegating and close it after
      *
      * @param string $name      Called method
      * @param array  $arguments Passed arguments
@@ -92,11 +165,68 @@ class mysqli_ {
      */
     public function __call($name, $arguments) {
         // If we're in read only mode and the connection is not open, just fail quietly
-        if (true === $this->readonly && false === $this->_open) {
+        if (true === $this->readonly && false === $this->_outer_is_open) {
             return false;
         }
 
-        return $this->_mysqli->{$name}(...$arguments);
+        $this->_inner_open();
+        if ('query' == $name) {
+            $result = $this->_inner_query(...$arguments);
+        } elseif ('queryToArray' == $name) {
+            $result = $this->_queryToArray(...$arguments);
+        } else {
+            $result = $this->_mysqli->{$name}(...$arguments);
+        }
+        $this->_inner_close();
+
+        return $result;
+    }
+
+    /**
+     * Store the values of our inner mysqli object
+     *
+     * @return void
+     */
+    protected function _inner_properties() {
+        $properties = [
+            'affected_rows', 'connect_errno', 'connect_error', 'errno', 'error_list', 'error', 'field_count',
+            'client_info', 'client_version', 'host_info', 'protocol_version', 'server_info', 'server_version', 'info',
+            'insert_id', 'sqlstate', 'thread_id', 'warning_count',
+        ];
+        foreach ($properties as $property) {
+            $this->_inner_properties[$property] = $this->_mysqli->$property;
+        }
+    }
+
+    /**
+     * Close the inner connection but maintain the pretense we are open
+     *
+     * @param bool $force Close connection even if we're not in sparse mode
+     *
+     * @return void
+     */
+    protected function _inner_close(bool $force = false) {
+        if ($this->_inner_is_open && ($this->_sparse || $force)) {
+            $this->_inner_properties();
+            $this->_mysqli->close();
+            $this->_inner_is_open = false;
+        }
+    }
+
+    /**
+     * If we are supporting the pretentious open, open the inner connection
+     *
+     * @return bool
+     */
+    protected function _inner_open() {
+        if ($this->_outer_is_open && !$this->_inner_is_open) {
+            $this->_mysqli = new mysqli(...$this->_connectionParam);
+            if (!mysqli_connect_error()) {
+                $this->_inner_is_open = true;
+            }
+        }
+
+        return $this->_inner_is_open;
     }
 
     /**
@@ -105,10 +235,11 @@ class mysqli_ {
      * @return void
      */
     public function close() {
-        if ($this->_open) {
+        if ($this->_inner_is_open) {
             $this->_mysqli->close();
-            $this->_open = false;
+            $this->_inner_is_open = false;
         }
+        $this->_outer_is_open = false;
     }
 
     /**
@@ -117,7 +248,7 @@ class mysqli_ {
      * @return bool
      */
     public function isOpen() {
-        return $this->_open;
+        return $this->_outer_is_open;
     }
 
     /**
@@ -128,8 +259,8 @@ class mysqli_ {
      *
      * @return mixed Passes return value from mysqli::query()
      */
-    public function query($query, $resultMode = \MYSQLI_STORE_RESULT) {
-        if (false === $this->_open) {
+    private function _inner_query($query, $resultMode = \MYSQLI_STORE_RESULT) {
+        if (false === $this->_inner_is_open) {
             trigger_error('Refusing to run a query against a closed connection.');
 
             return false;
@@ -233,10 +364,11 @@ class mysqli_ {
     private function query_and_handle_errors($query, $resultmode = \MYSQLI_STORE_RESULT) {
         $result = $this->_mysqli->query($query, $resultmode);
 
-        // Handle "MySQL server has gone away"
+        // Handle "MySQL server has gone away" by reopening the inner connection
         if (2006 == $this->_mysqli->errno) {
-            $this->_mysqli = new mysqli(...$this->_connectionParam);
-            if (!mysqli_connect_error()) {
+            $this->_inner_close(true);
+            $this->_inner_open();
+            if ($this->_inner_is_open) {
                 $result = $this->_mysqli->query($query, $resultmode);
             }
         }
@@ -252,7 +384,7 @@ class mysqli_ {
      *
      * @return array|bool Array of rows returned by query|false on error
      */
-    public function queryToArray($query, $keyField = null) {
+    private function _queryToArray($query, $keyField = null) {
         // If query fails, return false
         if (false === $result = $this->query_and_handle_errors($query)) {
             return false;
@@ -321,10 +453,20 @@ class mysqli_ {
             case 'log':
                 return self::$_log;
             case 'open':
-                return $this->_open;
+                return $this->_outer_is_open;
+            case 'inner_open':
+                return $this->_inner_is_open;
+            case 'outer_open':
+                return $this->_outer_is_open;
             default:
-                if (isset($this->_mysqli->{$k})) {
-                    return $this->_mysqli->{$k};
+                if ($this->_inner_is_open) {
+                    if (isset($this->_mysqli->{$k})) {
+                        return $this->_mysqli->{$k};
+                    }
+                } else {
+                    if (isset($this->_inner_properties[$k])) {
+                        return $this->_inner_properties[$k];
+                    }
                 }
                 $d = debug_backtrace();
                 trigger_error('Undefined property via __get(): '.$k.' in '.$d[0]['file'].' on line '.$d[0]['line'],
@@ -357,7 +499,8 @@ class mysqli_ {
                 null,
                 null,
                 G::$G['db']['tabl'],
-                G::$G['db']['log']
+                G::$G['db']['log'],
+                G::$G['db'][$source]['sparse'] ?? G::$G['db']['sparse'] ?? false
             );
             if ($MySql->isOpen()) {
                 return $MySql;

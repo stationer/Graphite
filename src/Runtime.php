@@ -141,7 +141,8 @@ class Runtime {
             null,
             null,
             G::$G['db']['tabl'],
-            G::$G['db']['log']);
+            G::$G['db']['log'],
+            G::$G['db']['sparse'] ?? false);
 
         if (!empty(G::$G['db']['ro'])
             && !empty(G::$G['db']['ro']['user'])
@@ -153,7 +154,8 @@ class Runtime {
                 null,
                 null,
                 G::$G['db']['tabl'],
-                G::$G['db']['log']);
+                G::$G['db']['log'],
+                G::$G['db']['ro']['sparse'] ?? G::$G['db']['sparse'] ?? false);
             if (mysqli_connect_error()) {
                 G::$m = G::$M;
             } else {
