@@ -270,7 +270,7 @@ class mysqli_ {
         $skipQuery = $this->readonly
             && !in_array(strtolower(substr(ltrim($query), 0, 6)), ['select', 'explai', 'descri', 'show t']);
         if (!self::$_log) {
-            return $skipQuery ? false : $this->query_and_handle_errors($query, $resultMode);
+            return $skipQuery ? false : $this->_query_and_handle_errors($query, $resultMode);
         }
 
         // get the last few functions on the call stack
@@ -299,7 +299,7 @@ class mysqli_ {
             // start time
             $time = microtime(true);
             // Call mysqli's query() method, with call stack in comment
-            $result = $this->query_and_handle_errors($query_stacked, $resultMode);
+            $result = $this->_query_and_handle_errors($query_stacked, $resultMode);
             // [0][0] totals the time of all queries
             self::$_aQueries[0][0] += $time = microtime(true) - $time;
             // Pause Profiler for 'query'
@@ -361,7 +361,7 @@ class mysqli_ {
      *
      * @return mixed Passes return value from mysqli::query()
      */
-    private function query_and_handle_errors($query, $resultmode = \MYSQLI_STORE_RESULT) {
+    private function _query_and_handle_errors($query, $resultmode = \MYSQLI_STORE_RESULT) {
         $result = $this->_mysqli->query($query, $resultmode);
 
         // Handle "MySQL server has gone away" by reopening the inner connection
@@ -386,7 +386,7 @@ class mysqli_ {
      */
     private function _queryToArray($query, $keyField = null) {
         // If query fails, return false
-        if (false === $result = $this->query_and_handle_errors($query)) {
+        if (false === $result = $this->_inner_query($query)) {
             return false;
         }
 
