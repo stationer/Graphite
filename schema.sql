@@ -42,6 +42,21 @@ CREATE TABLE IF NOT EXISTS `LoginLog` (
 );
 
 
+ -- \Stationer\Graphite\models\Revision
+DROP TABLE IF EXISTS `Revision`;
+CREATE TABLE IF NOT EXISTS `Revision` (
+    `revision_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `created_uts` int(10) unsigned NOT NULL DEFAULT 0,
+    `updated_dts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `revisedModel` varchar(255) NOT NULL,
+    `revised_id` int(10) unsigned NOT NULL DEFAULT 0,
+    `editor_id` int(10) unsigned NOT NULL DEFAULT 0,
+    `changes` mediumtext NOT NULL,
+    KEY (`updated_dts`),
+    PRIMARY KEY(`revision_id`)
+);
+
+
  -- \Stationer\Graphite\models\Role
 DROP TABLE IF EXISTS `Role`;
 CREATE TABLE IF NOT EXISTS `Role` (
